@@ -604,7 +604,14 @@ select:focus{outline:none;border-color:var(--gold)}
   background:none;border:1px solid var(--edge);border-radius:6px;
   padding:8px 16px;color:var(--muted);cursor:pointer;font-size:13px;
 }
-.flagrow .notesave{border:0;color:var(--ground)}
+/* .flagrow button strips the background, and being two-class specific it wins
+   over .notesave. The override restored the text colour but not the fill, so
+   the primary button rendered dark-on-dark and looked like empty space. Both
+   properties have to come back together. */
+.flagrow .notesave{
+  border:0;background:var(--verdigris);color:var(--ground);font-weight:500;
+}
+.flagrow .notesave:hover{background:var(--gold);color:var(--ground)}
 .toast{
   position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:220;
   background:var(--verdigris);color:var(--ground);padding:11px 22px;

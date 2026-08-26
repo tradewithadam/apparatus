@@ -9,6 +9,12 @@ data/*.db-shm
 corpora/*.jsonl
 .DS_Store
 .vscode/settings.json
+
+# Cloned data sources — large, re-downloadable, and STEPBible-Data is itself a
+# git repo, which git would otherwise record as a broken submodule.
 STEPBible-Data/
 .swordcache/
+
+# Packaged database for deploy (hundreds of MB)
 *.gz
+*.sqlite
