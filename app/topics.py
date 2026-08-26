@@ -108,8 +108,20 @@ def _verse_rows(con, vids, translation):
 
 
 def semantic_verses(con, query: str, translation: str, k: int = 40):
-    """Nearest verses by embedding. Requires the verse-embedding ingest step."""
-    qvec = embed_query(query)
+    """
+    Nearest verses by embedding. One of four retrieval signals — returns
+    nothing rather than raising if embeddings are unavailable, so a topic
+    search still runs on the other three.
+    """
+    if not store.has_vectors(con):
+        return []
+    try:
+        qvec = embed_query(query)
+    except Exception as e:
+        import sys
+        print(f"[embed] verse embedding failed ({e}); skipping semantic pass",
+              file=sys.stderr)
+        return []
 
     if store.IS_PG:
         lit = "[" + ",".join(f"{float(x):.6f}" for x in qvec) + "]"

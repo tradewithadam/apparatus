@@ -53,7 +53,7 @@ import numpy as np
 
 from .. import refs
 from ..db import connect
-from ..embed import embed_texts, stamp
+from ..embed import embed_texts, stamp, signature
 
 MAX_CHARS = 1400      # ~350 tokens: big enough for an argument, small enough to rank
 OVERLAP = 180
@@ -156,11 +156,30 @@ def rebuild_fts(con):
               file=sys.stderr)
 
 
-def embed_all(con, batch: int = 256):
+def embed_all(con, batch: int = 256, force: bool = False):
+    """
+    Embed chunks that need it.
+
+    "Need it" includes chunks embedded by a DIFFERENT model. Only checking for
+    NULL means that switching EMBED_BACKEND and re-running looks like it worked
+    — it prints "already current" and changes nothing — leaving half a database
+    on one vector space and half on another. That failure reaches production
+    looking healthy, which is the worst kind.
+    """
+    row = con.execute("SELECT value FROM meta WHERE key = 'embedding'").fetchone()
+    stored = row[0] if row else None
+    changed = stored is not None and stored != signature()
+
+    if changed or force:
+        why = "backend changed" if changed else "--reembed"
+        print(f"  re-embedding everything ({why}: {stored} -> {signature()})")
+        con.execute("UPDATE chunks SET embedding = NULL")
+        con.commit()
+
     todo = [(r["id"], r["text"]) for r in
             con.execute("SELECT id, text FROM chunks WHERE embedding IS NULL")]
     if not todo:
-        print("  embeddings: already current")
+        print(f"  embeddings: already current ({stored or signature()})")
         return
     print(f"  embedding {len(todo):,} chunks ...", flush=True)
     for i in range(0, len(todo), batch):
@@ -182,6 +201,8 @@ def main():
     ap.add_argument("--db", default="data/apparatus.db")
     ap.add_argument("--dir", default="corpora", help="directory of *.jsonl files")
     ap.add_argument("--embed", action="store_true")
+    ap.add_argument("--reembed", action="store_true",
+                    help="force re-embedding even if the backend is unchanged")
     args = ap.parse_args()
 
     con = connect(args.db)
@@ -195,8 +216,8 @@ def main():
 
     if files:
         rebuild_fts(con)
-    if args.embed:
-        embed_all(con)
+    if args.embed or args.reembed:
+        embed_all(con, force=args.reembed)
 
     counts = con.execute("""
         SELECT s.tradition, COUNT(*) n FROM chunks c

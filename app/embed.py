@@ -114,10 +114,19 @@ def dim() -> int:
     return _dim
 
 
+def model_id() -> str:
+    """Backend and model, without touching the network."""
+    return f"{BACKEND}:{VOYAGE_MODEL if BACKEND == 'voyage' else LOCAL_MODEL}"
+
+
 def signature() -> str:
-    """Identifies the vector space: backend + model + dimensions."""
-    model = VOYAGE_MODEL if BACKEND == "voyage" else LOCAL_MODEL
-    return f"{BACKEND}:{model}:{dim()}"
+    """
+    Identifies the vector space: backend + model + dimensions.
+
+    Calls dim(), which for a hosted backend means an API request. Use it when
+    recording what produced a set of vectors — never on a read path.
+    """
+    return f"{model_id()}:{dim()}"
 
 
 def stamp(con):
@@ -130,8 +139,13 @@ def stamp(con):
 
 def check(con) -> str | None:
     """
-    Returns a human-readable warning if the stored vectors came from a
-    different model than the one now configured, else None.
+    Warning if the stored vectors came from a different model, else None.
+
+    Compares backend and model name only — deliberately not dimensions, since
+    obtaining those means embedding a probe string. That made the *check* for
+    whether the embedding service was usable itself require the embedding
+    service, so a misconfigured or rate-limited key produced an API call and an
+    exception on every single search. A read path must never spend a request.
     """
     try:
         row = con.execute("SELECT value FROM meta WHERE key = 'embedding'").fetchone()
@@ -140,9 +154,9 @@ def check(con) -> str | None:
     if not row:
         return None
     stored = row[0] if not hasattr(row, "keys") else row["value"]
-    if stored == signature():
+    if stored.rsplit(":", 1)[0] == model_id():
         return None
     return (f"Vectors in this database were made by {stored}, but "
-            f"EMBED_BACKEND is now {signature()}. Semantic search will be "
-            f"wrong. Re-run the embedding steps with the current backend, or "
-            f"set EMBED_BACKEND back to what built it.")
+            f"EMBED_BACKEND is now {model_id()}. Semantic search is disabled. "
+            f"Re-run the embedding steps with the current backend, or set "
+            f"EMBED_BACKEND back to what built it.")

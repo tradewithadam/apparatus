@@ -9,6 +9,24 @@ from . import refs, retrieval, validate, llm, store, topics, limits
 from .db import get_db, close_db, init_db
 
 
+def _year_range(sources):
+    """
+    Earliest and latest year in the corpus.
+
+    Was comparing year strings and seeding with "9999"/"0000" sentinels, so a
+    source with no year left the sentinels in place and the footer advertised
+    "written 9999-0000". Parse to integers and ignore anything unparseable.
+    """
+    years = []
+    for s in sources:
+        y = (s.get("year") or "").strip()
+        if y.isdigit() and 100 <= int(y) <= 2100:
+            years.append(int(y))
+    if not years:
+        return [None, None]
+    return [str(min(years)), str(max(years))]
+
+
 def _embed_warning(con):
     try:
         from . import embed
@@ -32,8 +50,23 @@ def _bootstrap_db(path):
     import urllib.request
 
     url = os.environ.get("DB_URL", "").strip()
-    if not url or os.path.exists(path):
+    if not url:
         return
+
+    # Re-download when DB_URL changes. Without this, pointing at a rebuilt
+    # database does nothing — the disk already has a file, so the fetch is
+    # skipped and the old data stays. Changing the URL is the only signal that
+    # you meant to replace it.
+    marker = path + ".source"
+    if os.path.exists(path):
+        try:
+            with open(marker) as f:
+                if f.read().strip() == url:
+                    return
+        except OSError:
+            return          # no marker: an existing database predates this, leave it
+        print("[bootstrap] DB_URL changed; replacing the database", flush=True)
+        os.remove(path)
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     tmp = path + ".download"
     print(f"[bootstrap] fetching database from {url}", flush=True)
@@ -46,6 +79,8 @@ def _bootstrap_db(path):
             os.remove(tmp)
         else:
             os.replace(tmp, path)
+        with open(marker, "w") as f:
+            f.write(url)
         size = os.path.getsize(path) / 1e6
         print(f"[bootstrap] database ready ({size:.0f} MB)", flush=True)
     except Exception as e:
@@ -78,6 +113,29 @@ def create_app(config=None):
     if not store.IS_PG:
         init_db(app.config["DB_PATH"])
     app.teardown_appcontext(close_db)
+
+    @app.errorhandler(Exception)
+    def handle_error(e):
+        """
+        Always answer the API in JSON.
+
+        Flask's default 500 is an HTML page. The front end calls .json() on it
+        and Safari reports "The string did not match the expected pattern",
+        which tells the user nothing and points at the wrong thing entirely.
+        """
+        from werkzeug.exceptions import HTTPException
+        if isinstance(e, HTTPException):
+            if request.path.startswith("/api/"):
+                return jsonify({"error": e.description, "status": e.code}), e.code
+            return e
+        app.logger.exception("Unhandled error on %s", request.path)
+        if request.path.startswith("/api/"):
+            return jsonify({
+                "error": "Something went wrong on the server. If this keeps "
+                         "happening, the logs will say why.",
+                "detail": str(e)[:300],
+            }), 500
+        raise e
 
     @app.get("/")
     def index():
@@ -568,10 +626,7 @@ def create_app(config=None):
             "embedded": one("SELECT COUNT(*) FROM chunks WHERE embedding IS NOT NULL"),
             "sources": sources,
             "traditions": sorted({s["tradition"] for s in sources if s["tradition"]}),
-            "corpus_years": [
-                min((s.get("year") or "9999") for s in sources) if sources else None,
-                max((s.get("year") or "0000") for s in sources) if sources else None,
-            ],
+            "corpus_years": _year_range(sources),
             "backend": "postgres" if store.IS_PG else "sqlite",
             "embedding_warning": _embed_warning(con),
         })

@@ -19,10 +19,16 @@ import argparse
 import numpy as np
 
 from ..db import connect
-from ..embed import embed_texts, stamp
+from ..embed import embed_texts, stamp, signature
 
 
 def embed_translation(con, translation: str, batch: int = 256, rebuild: bool = False):
+    row = con.execute("SELECT value FROM meta WHERE key = 'embedding'").fetchone()
+    stored = row[0] if row else None
+    if stored is not None and stored != signature():
+        print(f"  backend changed ({stored} -> {signature()}); rebuilding")
+        rebuild = True
+
     if rebuild:
         con.execute("DELETE FROM verse_vecs WHERE translation = ?", (translation,))
         con.commit()

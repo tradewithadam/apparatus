@@ -215,9 +215,22 @@ def commentary(con, start: int, end: int, question: str | None,
     # Only load the embedding model if there is something to search. Lets the
     # app run usefully on scripture + lexicon + cross-references alone, before
     # any commentary has been ingested.
+    # Semantic retrieval is one of several signals. If the embedding service
+    # is down, rate limited, or misconfigured, the study should still be built
+    # from range matching, keyword search and cross-references rather than
+    # failing outright.
+    semantic_hits = []
     if question and store.has_vectors(con):
-        qvec = embed_query(question)
-        for cid, score in store.vector_search(con, qvec, semantic_k, chosen_ids):
+        try:
+            qvec = embed_query(question)
+            semantic_hits = store.vector_search(con, qvec, semantic_k, chosen_ids)
+        except Exception as e:
+            import sys
+            print(f"[embed] query embedding failed ({e}); "
+                  f"continuing without semantic search", file=sys.stderr)
+
+    if question:
+        for cid, score in semantic_hits:
             if score < 0.32:      # below this, results are noise
                 continue
             row = _rows(con, """

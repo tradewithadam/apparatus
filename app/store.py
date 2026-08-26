@@ -230,8 +230,34 @@ def delete_entry(con, key: str):
 
 # ---------------------------------------------------------------- vectors
 
+_USABLE = None
+
+
 def has_vectors(con) -> bool:
-    return rows(con, "SELECT 1 AS x FROM chunks WHERE embedding IS NOT NULL LIMIT 1") != []
+    """
+    Are there vectors AND can this backend actually query them?
+
+    The second half matters. Checking only for the presence of vectors meant
+    every search embedded the query first and discovered the dimension
+    mismatch afterwards — burning an API call, and on a rate-limited key
+    turning a degraded feature into a 500 for the whole study. Decide before
+    spending the call, not after.
+    """
+    global _USABLE
+    if rows(con, "SELECT 1 AS x FROM chunks WHERE embedding IS NOT NULL LIMIT 1") == []:
+        return False
+    if _USABLE is None:
+        try:
+            from . import embed
+            _USABLE = embed.check(con) is None
+            if not _USABLE:
+                import sys
+                print("[embed] stored vectors do not match EMBED_BACKEND; "
+                      "semantic search disabled (everything else works)",
+                      file=sys.stderr)
+        except Exception:
+            _USABLE = True
+    return _USABLE
 
 
 _VEC_WARNED = False
