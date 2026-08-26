@@ -1,0 +1,14 @@
+# Supabase pauses free projects after 7 days without activity, and a paused
+# project takes your app down until you click resume in the dashboard.
+# This pings it twice a week. Free on public repos.
+name: keep-supabase-awake
+on:
+  schedule:
+    - cron: "0 9 * * 1,4"      # Mondays and Thursdays, 09:00 UTC
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Touch the database through the app
+        run: curl -sSf --max-time 90 "${{ secrets.APP_URL }}/api/status" > /dev/null

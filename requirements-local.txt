@@ -1,0 +1,6 @@
+# Local development extras. Install on your laptop only.
+-r requirements.txt
+
+# Offline embeddings — free, no API key, ~2 GB of PyTorch.
+# Set EMBED_BACKEND=local to use these.
+sentence-transformers>=3.0

@@ -1,0 +1,18 @@
+# Production (Render). Deliberately no PyTorch — sentence-transformers pulls in
+# ~2 GB and will blow the build on a 512 MB instance. Production embeds via the
+# Voyage API instead; see requirements-local.txt for the offline option.
+Flask>=3.0
+anthropic>=0.40
+python-dotenv>=1.0
+gunicorn>=22.0
+
+# Postgres / Supabase
+psycopg[binary]>=3.2
+psycopg-pool>=3.2
+
+# Hosted embeddings
+# voyageai client not needed — app calls the REST endpoint directly,
+# which works with keys from either voyageai.com or MongoDB Atlas.
+
+# Used by the local SQLite vector fallback and the migration script
+numpy>=1.26

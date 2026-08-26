@@ -1,0 +1,50 @@
+# Render Blueprint — New → Blueprint → pick your repo.
+#
+# SQLite on a persistent disk, not Postgres. With commentary, interlinear and
+# verse vectors loaded the database runs past 400 MB, which is over Supabase's
+# free tier — so that route starts at $25/month before the first user. A 5 GB
+# Render disk is about $1.25/month and needs no migration.
+services:
+  - type: web
+    name: apparatus
+    runtime: python
+    plan: starter              # free works, but sleeps after 15 min idle
+    region: ohio
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn 'app:create_app()' --bind 0.0.0.0:$PORT --workers 2 --timeout 180
+    healthCheckPath: /api/status
+    disk:
+      name: apparatus-data
+      mountPath: /var/data
+      sizeGB: 5
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12"
+      - key: DB_PATH
+        value: /var/data/apparatus.db     # on the disk, survives deploys
+      - key: DB_URL
+        sync: false            # gzipped database; fetched once on first boot
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: MODEL
+        value: claude-sonnet-4-6
+      - key: TRANSLATIONS
+        value: BSB,KJV
+      - key: TRANSLATIONS_ES
+        value: SpaRV
+      - key: EMBED_BACKEND
+        value: voyage          # keeps PyTorch out of the build
+      - key: VOYAGE_API_KEY
+        sync: false
+      - key: VOYAGE_BASE_URL
+        value: https://ai.mongodb.com/v1   # Atlas key. Remove if from voyageai.com
+      # ── spending guards ──────────────────────────────────────────
+      - key: GLOBAL_DAILY_CAP
+        value: "500"           # hard ceiling on model calls per day
+      - key: RATE_PER_HOUR
+        value: "20"
+      - key: RATE_PER_DAY
+        value: "60"
+      - key: ACCESS_CODE
+        sync: false            # set to share privately; leave unset for public

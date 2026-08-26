@@ -1,0 +1,2360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Apparatus — study the text, sources shown</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   Illuminated manuscript, adapted for screens.
+
+   Medieval Bibles were written in dark ink on parchment, with
+   headings rubricated in red and initials laid in gold leaf. That
+   is where the palette comes from — rubric red and gold are not
+   decoration here, they are the two colours scripture has actually
+   been marked up in for a thousand years.
+
+   Dark is the default because every other Bible app is white, and
+   because people read scripture at night, on a phone, in bed.
+   ═══════════════════════════════════════════════════════════════ */
+
+:root, [data-theme="dark"]{
+  --ground:#14161C;
+  --raised:#1C1F27;
+  --raised2:#232733;
+  --edge:#2E323E;
+  --text:#E8E4DA;
+  --text-dim:#B4B2AB;
+  --muted:#868A95;
+  --rubric:#D96A56;
+  --gold:#D4A64A;
+  --verdigris:#52A69C;
+  --glow:rgba(212,166,74,.09);
+  --shadow:0 1px 3px rgba(0,0,0,.4), 0 8px 26px rgba(0,0,0,.22);
+}
+[data-theme="light"]{
+  --ground:#EFEDE6;
+  --raised:#FAF9F5;
+  --raised2:#F3F1EA;
+  --edge:#DAD7CC;
+  --text:#1A1C22;
+  --text-dim:#3E424A;
+  --muted:#6E7178;
+  --rubric:#A5372C;
+  --gold:#8A6614;
+  --verdigris:#2F6F6A;
+  --glow:rgba(138,102,20,.07);
+  --shadow:0 1px 2px rgba(0,0,0,.05), 0 6px 20px rgba(0,0,0,.06);
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--ground);color:var(--text);
+  font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:16px;line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  transition:background .25s ease,color .25s ease;
+}
+a{color:var(--rubric)}
+::selection{background:var(--gold);color:var(--ground)}
+
+/* ── masthead ─────────────────────────────────────────── */
+.masthead{border-bottom:1px solid var(--edge);padding:18px 26px;background:var(--raised)}
+.masthead-inner{max-width:1280px;margin:0 auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.wordmark{
+  font-family:"EB Garamond",Georgia,serif;font-size:27px;font-weight:600;
+  letter-spacing:.005em;margin:0;line-height:1;
+}
+.wordmark em{color:var(--gold);font-style:normal}
+.tagline{font-size:12.5px;color:var(--muted);letter-spacing:.01em}
+.langtoggle,.themetoggle{
+  display:flex;border:1px solid var(--edge);border-radius:5px;overflow:hidden;background:var(--raised2);
+}
+.langtoggle{margin-left:auto}
+.langtoggle button,.themetoggle button{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.05em;
+  text-transform:uppercase;background:none;color:var(--muted);border:0;
+  padding:5px 11px;cursor:pointer;transition:all .15s;
+}
+.langtoggle button+button{border-left:1px solid var(--edge)}
+.langtoggle button[aria-pressed="true"]{background:var(--gold);color:var(--ground);font-weight:500}
+.themetoggle button{padding:5px 9px;font-size:13px}
+.themetoggle button:hover{color:var(--gold)}
+.status-pill{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--muted);
+  border:1px solid var(--edge);border-radius:5px;padding:4px 9px;background:var(--raised2);
+}
+
+/* ── query ────────────────────────────────────────────── */
+.query{max-width:1280px;margin:0 auto;padding:22px 26px 0}
+.modes{display:flex;gap:4px;margin-bottom:16px}
+.modes button{
+  font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.09em;
+  text-transform:uppercase;background:transparent;border:1px solid transparent;
+  border-radius:6px;color:var(--muted);padding:7px 15px;cursor:pointer;transition:all .15s;
+}
+.modes button:hover{color:var(--text)}
+.modes button[aria-selected="true"]{
+  background:var(--raised);border-color:var(--edge);color:var(--gold);
+}
+.query-row{display:flex;gap:11px;flex-wrap:wrap;align-items:flex-end}
+.field{display:flex;flex-direction:column;gap:6px}
+.field.ref{flex:0 0 230px}
+.field.ask{flex:1 1 360px;min-width:250px}
+label{
+  font-family:"IBM Plex Mono",monospace;font-size:10px;text-transform:uppercase;
+  letter-spacing:.11em;color:var(--muted);
+}
+input[type=text]{
+  font-family:"EB Garamond",Georgia,serif;font-size:17px;color:var(--text);
+  background:var(--raised);border:1px solid var(--edge);border-radius:6px;
+  padding:11px 13px;width:100%;transition:border-color .15s,box-shadow .15s;
+}
+input[type=text]::placeholder{color:var(--muted)}
+input[type=text]:focus{
+  outline:none;border-color:var(--gold);box-shadow:0 0 0 3px var(--glow);
+}
+button.go{
+  font-size:14px;font-weight:500;background:var(--gold);color:var(--ground);
+  border:0;border-radius:6px;padding:12px 24px;cursor:pointer;transition:all .15s;
+}
+button.go:hover{background:var(--rubric);color:var(--text)}
+button.go:disabled{background:var(--edge);color:var(--muted);cursor:wait}
+.examples{margin-top:11px;display:flex;gap:7px;flex-wrap:wrap}
+.examples button{
+  font-family:"EB Garamond",Georgia,serif;font-size:14.5px;color:var(--text-dim);
+  background:var(--raised);border:1px solid var(--edge);border-radius:20px;
+  padding:5px 14px;cursor:pointer;transition:all .15s;
+}
+.examples button:hover{border-color:var(--gold);color:var(--gold)}
+
+/* ── book picker ──────────────────────────────────────── */
+.picker{position:relative}
+.picker-btn{
+  font-family:"EB Garamond",Georgia,serif;font-size:16.5px;background:var(--raised);
+  border:1px solid var(--edge);border-radius:6px;padding:11px 13px;cursor:pointer;
+  width:100%;text-align:left;color:var(--text);display:flex;align-items:center;gap:8px;
+  transition:border-color .15s;
+}
+.picker-btn:hover{border-color:var(--gold)}
+.picker-btn .caret{margin-left:auto;color:var(--muted);font-size:10px}
+.panel{
+  position:absolute;z-index:60;top:calc(100% + 6px);left:0;width:min(680px,92vw);
+  background:var(--raised);border:1px solid var(--edge);border-radius:9px;
+  box-shadow:var(--shadow);padding:15px;display:none;
+}
+.panel.open{display:block}
+.panel h4{
+  font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--gold);margin:0 0 9px;font-weight:500;
+}
+.panel h4+h4{margin-top:17px}
+.booklist{display:grid;grid-template-columns:repeat(auto-fill,minmax(116px,1fr));gap:2px}
+.booklist button{
+  font-family:"EB Garamond",Georgia,serif;font-size:15px;text-align:left;
+  background:none;border:0;padding:5px 8px;cursor:pointer;color:var(--text);border-radius:4px;
+}
+.booklist button:hover{background:var(--gold);color:var(--ground)}
+.chaplist{display:grid;grid-template-columns:repeat(auto-fill,minmax(42px,1fr));gap:4px;
+  max-height:290px;overflow-y:auto}
+.chaplist button{
+  font-family:"IBM Plex Mono",monospace;font-size:12px;background:var(--raised2);
+  border:1px solid var(--edge);padding:8px 0;cursor:pointer;color:var(--text);border-radius:4px;
+}
+.chaplist button:hover{background:var(--gold);color:var(--ground);border-color:var(--gold)}
+.wholechap{
+  font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:13px;width:100%;
+  background:var(--gold);color:var(--ground);border:0;border-radius:6px;
+  padding:9px 0;cursor:pointer;margin-bottom:11px;font-weight:500;
+}
+.wholechap:hover{background:var(--rubric);color:var(--text)}
+.pickhint{
+  font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--muted);margin:0 0 9px;
+}
+.verselist button.inrange{border-color:var(--verdigris);color:var(--verdigris)}
+.verselist button.startv{background:var(--verdigris);color:var(--ground);border-color:var(--verdigris)}
+.panel-back{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--rubric);
+  background:none;border:0;cursor:pointer;padding:0;margin-bottom:11px;
+}
+.cmd{
+  font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--gold);
+  background:var(--ground);border:1px solid var(--edge);border-radius:6px;
+  padding:11px 13px;margin:10px 0 0;overflow-x:auto;white-space:pre-wrap;
+  word-break:break-all;
+}
+.panel-filter{
+  font-size:13.5px;width:100%;padding:8px 10px;margin-bottom:12px;
+  border:1px solid var(--edge);background:var(--raised2);border-radius:5px;color:var(--text);
+}
+
+/* ── layout ───────────────────────────────────────────── */
+.sheet{
+  max-width:1280px;margin:0 auto;padding:26px 26px 100px;
+  display:grid;grid-template-columns:minmax(0,460px) minmax(0,1fr);gap:34px;align-items:start;
+}
+@media(max-width:1000px){.sheet{grid-template-columns:1fr;gap:26px}}
+/* Pin each pane to its column. Without this, an empty scripture pane
+   collapses out of the grid and the findings slide into the narrow slot. */
+.passage{grid-column:1}
+.apparatus{grid-column:2;min-width:0}
+/* Before a search there is no scripture pane, so the findings column would
+   sit against an empty half-page. Let it span the full width until there is
+   something to sit beside. */
+.sheet:has(.passage:empty) .apparatus{grid-column:1 / -1}
+@media(max-width:1000px){.passage,.apparatus{grid-column:1}}
+
+/* ── scripture: the hero ──────────────────────────────── */
+.passage{
+  position:sticky;top:20px;background:var(--raised);border:1px solid var(--edge);
+  border-radius:11px;padding:24px 26px;box-shadow:var(--shadow);
+  max-height:calc(100vh - 44px);overflow-y:auto;
+}
+@media(max-width:1000px){.passage{position:static;max-height:none}}
+.passage:empty{display:none}
+.passage-head{
+  display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+  padding-bottom:11px;margin-bottom:18px;border-bottom:1px solid var(--edge);
+}
+.passage-ref{
+  font-family:"EB Garamond",Georgia,serif;font-size:25px;font-weight:600;
+  color:var(--gold);line-height:1.15;
+}
+.passage-trans{
+  font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--muted);margin-left:auto;
+}
+.verse{
+  font-family:"EB Garamond",Georgia,serif;font-size:20.5px;line-height:1.72;
+  margin:0 0 13px;color:var(--text);
+}
+.vnum{
+  font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--gold);
+  vertical-align:.62em;margin-right:6px;user-select:none;opacity:.85;
+}
+.hubtag{
+  font-family:"IBM Plex Mono",monospace;font-size:8.5px;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--verdigris);border:1px solid var(--verdigris);
+  padding:1px 5px;border-radius:3px;margin-left:7px;vertical-align:.2em;
+}
+.alt-trans{margin-top:20px;padding-top:15px;border-top:1px solid var(--edge)}
+.alt-trans summary{
+  font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--muted);cursor:pointer;
+}
+.alt-trans summary:hover{color:var(--gold)}
+.alt-trans p{font-family:"EB Garamond",Georgia,serif;font-size:16.5px;color:var(--text-dim);margin:12px 0 0;line-height:1.65}
+
+/* ── interlinear ──────────────────────────────────────── */
+.iltoggle{display:flex;justify-content:flex-end;margin-bottom:10px}
+.iltoggle button{
+  font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.09em;
+  text-transform:uppercase;background:var(--raised2);color:var(--muted);
+  border:1px solid var(--edge);border-radius:12px;padding:4px 12px;cursor:pointer;
+}
+.iltoggle button:hover{color:var(--gold);border-color:var(--gold)}
+.ilv{padding:12px 0;border-bottom:1px solid var(--edge)}
+.ilv:last-child{border-bottom:0}
+.ilv-ref{font-family:"IBM Plex Mono",monospace;font-size:9.5px;color:var(--gold);margin-bottom:8px;letter-spacing:.06em}
+.ilv-words{display:flex;flex-wrap:wrap;gap:9px}
+.ilv-words.rtl{direction:rtl}
+.ilw{
+  display:flex;flex-direction:column;gap:1px;padding:6px 9px;
+  background:var(--raised2);border-radius:6px;border:1px solid transparent;
+  min-width:52px;cursor:help;direction:ltr;
+}
+.ilw:hover{border-color:var(--verdigris)}
+.ilw-o{font-family:"EB Garamond",Georgia,serif;font-size:19px;color:var(--gold);line-height:1.3}
+.ilw-t{font-family:"IBM Plex Mono",monospace;font-size:9px;color:var(--muted);font-style:italic}
+.ilw-g{font-size:12.5px;color:var(--text);line-height:1.3}
+.ilw-s{font-family:"IBM Plex Mono",monospace;font-size:8px;color:var(--verdigris);opacity:.7}
+
+/* ── findings: cards, not a wall ──────────────────────── */
+.apparatus > section{
+  background:var(--raised);border:1px solid var(--edge);border-radius:11px;
+  padding:20px 24px;margin-bottom:16px;box-shadow:var(--shadow);scroll-margin-top:18px;
+}
+.sec-head{
+  display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 15px;
+  padding-bottom:10px;border-bottom:1px solid var(--edge);
+}
+.sec-title{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;font-weight:500;
+  text-transform:uppercase;letter-spacing:.14em;color:var(--gold);
+}
+.sec-note{font-size:12px;color:var(--muted);margin-left:auto;font-style:italic}
+
+.summary-text{font-family:"EB Garamond",Georgia,serif;font-size:20px;line-height:1.6;margin:0;color:var(--text)}
+.scope{
+  font-family:"EB Garamond",Georgia,serif;font-size:18.5px;line-height:1.6;
+  margin:0;padding-left:15px;border-left:2px solid var(--verdigris);color:var(--text);
+}
+.ctx{display:grid;gap:14px}
+.ctx div{font-size:14.5px;line-height:1.6;color:var(--text-dim)}
+.ctx b{
+  font-family:"IBM Plex Mono",monospace;font-size:9.5px;text-transform:uppercase;
+  letter-spacing:.1em;color:var(--muted);display:block;margin-bottom:3px;font-weight:500;
+}
+
+/* claims — certainty shown as bar length */
+.claim{display:flex;gap:14px;padding:11px 0;border-bottom:1px solid var(--edge)}
+.claim:last-child{border-bottom:0}.claim:first-child{padding-top:0}
+.cert{flex:0 0 38px;padding-top:6px}
+.cert i{display:block;height:3px;border-radius:2px;background:var(--gold);margin-bottom:4px}
+.cert[data-c="explicit"] i{width:38px}
+.cert[data-c="strongly_implied"] i{width:24px;background:var(--verdigris)}
+.cert[data-c="inferred"] i{width:12px;background:var(--muted)}
+.cert small{
+  font-family:"IBM Plex Mono",monospace;font-size:8px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.06em;display:block;
+}
+.claim-body{flex:1;font-size:15px;line-height:1.6;color:var(--text)}
+
+/* sigla */
+.sig{
+  font-family:"IBM Plex Mono",monospace;font-size:9.5px;color:var(--verdigris);
+  border:1px solid var(--verdigris);border-radius:3px;padding:1px 5px;margin-left:6px;
+  cursor:help;white-space:nowrap;opacity:.8;transition:all .12s;
+}
+.sig:hover{background:var(--verdigris);color:var(--ground);opacity:1}
+
+/* word study */
+.terms{display:grid;gap:12px}
+.term{
+  background:var(--raised2);border-left:3px solid var(--rubric);
+  border-radius:0 7px 7px 0;padding:14px 16px;
+}
+.term-top{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:7px}
+.term-orig{font-family:"EB Garamond",Georgia,serif;font-size:25px;color:var(--gold);line-height:1.1}
+.term-tr{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--muted);font-style:italic}
+.term-sur{font-family:"EB Garamond",Georgia,serif;font-size:16px;color:var(--rubric)}
+.term-why{font-size:14.5px;line-height:1.6;margin:0;color:var(--text-dim)}
+
+/* disputed — facing columns, like a diglot page */
+.dispute{
+  border:1px solid var(--verdigris);border-radius:9px;overflow:hidden;margin-bottom:15px;
+}
+.dispute-q{
+  font-family:"EB Garamond",Georgia,serif;font-size:19px;font-weight:600;
+  margin:0;padding:14px 16px 5px;color:var(--text);
+}
+.dispute-why{font-size:13.5px;color:var(--muted);margin:0;padding:0 16px 13px;font-style:italic}
+.positions{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--edge)}
+@media(max-width:680px){.positions{grid-template-columns:1fr}}
+.pos{background:var(--raised2);padding:14px 16px}
+.pos-held{
+  font-family:"IBM Plex Mono",monospace;font-size:9.5px;text-transform:uppercase;
+  letter-spacing:.09em;color:var(--verdigris);margin-bottom:6px;
+}
+.pos-view{font-family:"EB Garamond",Georgia,serif;font-size:17px;font-weight:600;margin:0 0 7px;line-height:1.35;color:var(--text)}
+.pos-reason{font-size:13.5px;line-height:1.6;margin:0;color:var(--text-dim)}
+.pos-texts{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--muted);margin-top:9px}
+.dispute-foot{
+  font-size:12.5px;color:var(--muted);padding:11px 16px;
+  background:var(--raised);border-top:1px solid var(--verdigris);
+}
+
+/* misreadings — editorial correction marks */
+.misread{padding:12px 0;border-bottom:1px solid var(--edge)}
+.misread:last-child{border-bottom:0}.misread:first-child{padding-top:0}
+.misread-x{
+  font-family:"EB Garamond",Georgia,serif;font-size:16.5px;color:var(--muted);
+  text-decoration:line-through;text-decoration-color:var(--rubric);
+  text-decoration-thickness:1.5px;margin:0 0 6px;
+}
+.misread-fix{font-size:14.5px;line-height:1.6;margin:0;color:var(--text)}
+
+.misuse{
+  border:1px solid var(--rubric);border-radius:9px;padding:15px 17px;margin-bottom:13px;
+  background:var(--raised2);
+}
+.misuse-ref{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--rubric);margin-bottom:8px;letter-spacing:.04em}
+.misuse-pop{font-family:"EB Garamond",Georgia,serif;font-size:16px;color:var(--muted);margin:0 0 9px;line-height:1.5}
+.misuse-pop:before{
+  content:"Quoted to prove — ";font-family:"IBM Plex Mono",monospace;font-size:9px;
+  text-transform:uppercase;letter-spacing:.09em;color:var(--muted);
+}
+.misuse-real{font-size:14.5px;line-height:1.6;margin:0;color:var(--text)}
+.misuse-real:before{
+  content:"In context — ";font-family:"IBM Plex Mono",monospace;font-size:9px;
+  text-transform:uppercase;letter-spacing:.09em;color:var(--rubric);
+}
+
+/* key passages / connections */
+.kp,.conn{display:flex;gap:13px;padding:10px 0;border-bottom:1px solid var(--edge);font-size:14.5px;line-height:1.6}
+.kp:last-child,.conn:last-child{border-bottom:0}
+.kp:first-child,.conn:first-child{padding-top:0}
+.kp-ref,.conn-ref{
+  font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--rubric);
+  flex:0 0 100px;padding-top:3px;letter-spacing:.02em;
+}
+.kp-w{
+  font-family:"IBM Plex Mono",monospace;font-size:8px;text-transform:uppercase;
+  letter-spacing:.08em;color:var(--muted);border:1px solid var(--edge);
+  padding:2px 6px;border-radius:10px;margin-left:8px;white-space:nowrap;
+}
+.kp-w[data-w="central"]{color:var(--gold);border-color:var(--gold)}
+
+/* quiet / deeper */
+.quiet,.deeper{background:var(--raised2);border:1px solid var(--edge);border-radius:8px;padding:15px 18px}
+.quiet ul,.deeper ul{margin:0;padding-left:20px}
+.quiet li,.deeper li{font-size:14.5px;margin-bottom:8px;line-height:1.6;color:var(--text-dim)}
+.quiet li::marker,.deeper li::marker{color:var(--gold)}
+.deeper p{font-size:13px;color:var(--muted);margin:13px 0 0;font-style:italic;line-height:1.6}
+
+/* ── grounding, promoted ──────────────────────────────── */
+.integrity{background:var(--raised2)!important}
+.meter{display:flex;gap:2px;margin:11px 0 9px}
+.meter i{flex:1;height:11px;border-radius:2px;background:var(--edge)}
+.meter i.on{background:var(--verdigris)}
+.meter i.off{background:var(--rubric)}
+.integrity-line{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--muted);line-height:1.85}
+.integrity details{margin-top:11px}
+.integrity summary{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--rubric);cursor:pointer}
+.integrity li{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--muted);margin-bottom:5px}
+
+.groundbadge{
+  display:flex;align-items:center;gap:11px;background:var(--raised);
+  border:1px solid var(--verdigris);border-radius:9px;padding:11px 16px;margin-bottom:16px;
+}
+.groundbadge .gb-n{font-family:"EB Garamond",Georgia,serif;font-size:26px;color:var(--verdigris);line-height:1}
+.groundbadge .gb-t{font-size:13px;color:var(--text-dim);line-height:1.4}
+.groundbadge .gb-t b{color:var(--text);font-weight:600}
+.groundbadge.warn{border-color:var(--rubric)}
+.groundbadge.warn .gb-n{color:var(--rubric)}
+
+/* ── section nav ──────────────────────────────────────── */
+.secnav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.secnav a{
+  font-family:"IBM Plex Mono",monospace;font-size:9.5px;text-transform:uppercase;
+  letter-spacing:.09em;color:var(--muted);text-decoration:none;
+  border:1px solid var(--edge);border-radius:14px;padding:5px 11px;
+  background:var(--raised);transition:all .15s;
+}
+.secnav a:hover{color:var(--gold);border-color:var(--gold)}
+
+/* ── sermon workbench ─────────────────────────────────── */
+select{
+  font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:14px;color:var(--text);
+  background:var(--raised);border:1px solid var(--edge);border-radius:6px;
+  padding:11px 10px;width:100%;cursor:pointer;
+}
+select:focus{outline:none;border-color:var(--gold)}
+.exportbar{display:flex;gap:7px;margin-bottom:14px}
+.exportbar button{
+  font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.09em;
+  text-transform:uppercase;background:var(--raised);color:var(--muted);
+  border:1px solid var(--edge);border-radius:14px;padding:6px 14px;cursor:pointer;
+}
+.exportbar button:hover{color:var(--gold);border-color:var(--gold)}
+.bigidea{
+  font-family:"EB Garamond",Georgia,serif;font-size:22px;line-height:1.5;
+  margin:0;color:var(--text);
+}
+.shape{font-size:14px;color:var(--text-dim);margin:14px 0 0;line-height:1.6}
+.shape b{
+  font-family:"IBM Plex Mono",monospace;font-size:9.5px;text-transform:uppercase;
+  letter-spacing:.1em;color:var(--muted);display:block;margin-bottom:3px;
+}
+.mv{display:flex;gap:15px;padding:15px 0;border-bottom:1px solid var(--edge)}
+.mv:last-child{border-bottom:0}.mv:first-child{padding-top:0}
+.mv-n{
+  flex:0 0 30px;height:30px;border-radius:50%;border:1px solid var(--gold);
+  color:var(--gold);display:flex;align-items:center;justify-content:center;
+  font-family:"EB Garamond",Georgia,serif;font-size:15px;
+}
+.mv-body{flex:1;min-width:0}
+.mv-top{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:7px}
+.mv-title{font-family:"EB Garamond",Georgia,serif;font-size:19px;font-weight:600;color:var(--text)}
+.mv-ref{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--rubric)}
+.mv-point{font-size:14.5px;line-height:1.62;margin:0;color:var(--text-dim)}
+.mv-det{margin:9px 0 0;padding-left:19px}
+.mv-det li{font-size:13.5px;line-height:1.55;color:var(--text-dim);margin-bottom:4px}
+.mv-det li::marker{color:var(--gold)}
+.mv-ill{
+  margin-top:11px;padding:10px 13px;background:var(--raised2);
+  border-left:2px solid var(--verdigris);border-radius:0 6px 6px 0;
+}
+.mv-ill b{
+  font-family:"IBM Plex Mono",monospace;font-size:9px;text-transform:uppercase;
+  letter-spacing:.1em;color:var(--verdigris);display:block;margin-bottom:6px;
+}
+.mv-ill ul{margin:0;padding-left:17px}
+.mv-ill li{font-size:13.5px;line-height:1.55;color:var(--text-dim);margin-bottom:4px;font-style:italic}
+
+.mv-min{
+  font-family:"IBM Plex Mono",monospace;font-size:9px;color:var(--gold);
+  border:1px solid var(--gold);border-radius:10px;padding:1px 7px;margin-left:auto;
+}
+.mv-read,.mv-deliv,.mv-trans{font-size:13.5px;line-height:1.55;margin:9px 0 0;color:var(--text-dim)}
+.mv-read b,.mv-deliv b,.mv-trans b{
+  font-family:"IBM Plex Mono",monospace;font-size:8.5px;text-transform:uppercase;
+  letter-spacing:.1em;color:var(--muted);display:block;margin-bottom:3px;
+}
+.mv-read{padding-left:11px;border-left:2px solid var(--rubric)}
+.mv-trans{
+  padding:9px 12px;background:var(--ground);border-radius:6px;
+  font-family:"EB Garamond",Georgia,serif;font-size:15.5px;color:var(--text);
+}
+.mv-trans b{font-family:"IBM Plex Mono",monospace;font-size:8.5px;color:var(--gold)}
+.drift{padding:11px 0;border-bottom:1px solid var(--edge)}
+.drift:last-child{border-bottom:0}.drift:first-child{padding-top:0}
+.drift-m{font-family:"EB Garamond",Georgia,serif;font-size:16.5px;color:var(--text);margin-bottom:4px}
+.drift-w{font-size:13.5px;color:var(--muted);margin:0 0 5px;line-height:1.55}
+.drift-h{font-size:14px;color:var(--verdigris);margin:0;line-height:1.55}
+.cutlist{margin:0;padding-left:22px;counter-reset:cut}
+.cutlist li{font-size:14.5px;line-height:1.6;color:var(--text-dim);margin-bottom:7px}
+.cutlist li::marker{color:var(--rubric);font-family:"IBM Plex Mono",monospace;font-size:12px}
+
+/* ── history drawer ───────────────────────────────────── */
+.scrim{
+  position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:90;
+  opacity:0;pointer-events:none;transition:opacity .2s;
+}
+.scrim.open{opacity:1;pointer-events:auto}
+.drawer{
+  position:fixed;top:0;right:0;bottom:0;width:min(400px,92vw);z-index:100;
+  background:var(--raised);border-left:1px solid var(--edge);
+  transform:translateX(100%);transition:transform .24s cubic-bezier(.2,.7,.3,1);
+  display:flex;flex-direction:column;box-shadow:-12px 0 40px rgba(0,0,0,.3);
+}
+.drawer.open{transform:none}
+.drawer-head{
+  display:flex;align-items:center;padding:16px 18px 12px;border-bottom:1px solid var(--edge);
+}
+.drawer-title{font-family:"EB Garamond",Georgia,serif;font-size:20px;color:var(--gold)}
+.drawer-x{
+  margin-left:auto;background:none;border:0;color:var(--muted);
+  font-size:15px;cursor:pointer;padding:2px 6px;
+}
+.drawer-x:hover{color:var(--rubric)}
+.drawer-tabs{display:flex;gap:5px;padding:12px 18px;border-bottom:1px solid var(--edge)}
+.drawer-tabs button{
+  font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.09em;
+  text-transform:uppercase;background:var(--raised2);color:var(--muted);
+  border:1px solid var(--edge);border-radius:13px;padding:5px 13px;cursor:pointer;
+}
+.drawer-tabs button[aria-pressed="true"]{background:var(--gold);color:var(--ground);border-color:var(--gold)}
+.drawer-body{flex:1;overflow-y:auto;padding:10px 12px 24px}
+.hist-empty{font-size:13.5px;color:var(--muted);padding:18px 8px;line-height:1.6;font-style:italic}
+.hist{display:flex;align-items:flex-start;gap:2px;border-bottom:1px solid var(--edge)}
+.hist:last-child{border-bottom:0}
+.hist-open{
+  flex:1;min-width:0;text-align:left;background:none;border:0;cursor:pointer;
+  padding:11px 8px;display:block;color:var(--text);border-radius:6px;
+}
+.hist-open:hover{background:var(--raised2)}
+.hist-kind{
+  font-family:"IBM Plex Mono",monospace;font-size:8px;text-transform:uppercase;
+  letter-spacing:.09em;border:1px solid var(--edge);border-radius:9px;
+  padding:1px 6px;color:var(--muted);margin-right:7px;
+}
+.hist-kind[data-k="sermon"]{color:var(--gold);border-color:var(--gold)}
+.hist-kind[data-k="topic"]{color:var(--verdigris);border-color:var(--verdigris)}
+.hist-title{font-family:"EB Garamond",Georgia,serif;font-size:16px}
+.hist-detail{
+  display:block;font-size:12.5px;color:var(--muted);margin-top:3px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.hist-when{
+  display:block;font-family:"IBM Plex Mono",monospace;font-size:9.5px;
+  color:var(--muted);margin-top:4px;
+}
+.hist-star,.hist-del{
+  background:none;border:0;cursor:pointer;color:var(--muted);
+  font-size:14px;padding:11px 5px;line-height:1;
+}
+.hist-star.on{color:var(--gold)}
+.hist-star:hover{color:var(--gold)}
+.hist-del{font-size:11px}
+.hist-del:hover{color:var(--rubric)}
+
+/* ── toolbar, flag, resume ────────────────────────────── */
+.toolbar{display:flex;gap:7px;margin-bottom:14px;flex-wrap:wrap}
+.toolbar button{
+  font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.09em;
+  text-transform:uppercase;background:var(--raised);color:var(--muted);
+  border:1px solid var(--edge);border-radius:13px;padding:6px 14px;cursor:pointer;
+}
+.toolbar button:hover{color:var(--gold);border-color:var(--gold)}
+.toolbar .flagbtn{margin-left:auto}
+.toolbar .flagbtn:hover{color:var(--rubric);border-color:var(--rubric)}
+.flagmodal{
+  position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.55);
+  display:flex;align-items:center;justify-content:center;padding:20px;
+}
+.flagcard{
+  background:var(--raised);border:1px solid var(--edge);border-radius:11px;
+  padding:22px 24px;width:min(440px,94vw);box-shadow:var(--shadow);
+}
+.flagcard h3{font-family:"EB Garamond",Georgia,serif;font-size:20px;margin:0 0 16px;color:var(--rubric)}
+.flagcard label{display:block;margin:12px 0 5px}
+.flagcard select,.flagcard textarea{
+  width:100%;background:var(--raised2);border:1px solid var(--edge);
+  border-radius:6px;padding:9px 11px;color:var(--text);font-size:14px;
+  font-family:"IBM Plex Sans",system-ui,sans-serif;
+}
+.flagcard textarea{resize:vertical}
+.flagrow{display:flex;gap:9px;justify-content:flex-end;margin-top:16px}
+.flagrow button{
+  background:none;border:1px solid var(--edge);border-radius:6px;
+  padding:8px 16px;color:var(--muted);cursor:pointer;font-size:13px;
+}
+.flagrow .notesave{border:0;color:var(--ground)}
+.toast{
+  position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:220;
+  background:var(--verdigris);color:var(--ground);padding:11px 22px;
+  border-radius:22px;font-size:13.5px;font-weight:500;
+}
+.resume{
+  display:block;width:100%;text-align:left;background:var(--raised2);
+  border:1px solid var(--gold);border-radius:8px;padding:11px 15px;
+  color:var(--gold);cursor:pointer;margin-bottom:18px;font-size:14px;
+  font-family:"IBM Plex Sans",system-ui,sans-serif;
+}
+.resume:hover{background:var(--gold);color:var(--ground)}
+.drawer-search{padding:0 18px 12px}
+.drawer-search input{
+  width:100%;background:var(--raised2);border:1px solid var(--edge);
+  border-radius:6px;padding:8px 11px;color:var(--text);font-size:13.5px;
+}
+.drawer-search input:focus{outline:none;border-color:var(--gold)}
+
+/* ── notes ────────────────────────────────────────────── */
+.notes{border-color:var(--verdigris)!important}
+.noteinput{
+  width:100%;font-family:"EB Garamond",Georgia,serif;font-size:16px;
+  color:var(--text);background:var(--raised2);border:1px solid var(--edge);
+  border-radius:7px;padding:11px 13px;resize:vertical;line-height:1.55;
+}
+.noteinput:focus{outline:none;border-color:var(--verdigris)}
+.noterow{display:flex;align-items:center;gap:11px;margin-top:9px}
+.notesave{
+  font-size:13px;font-weight:500;background:var(--verdigris);color:var(--ground);
+  border:0;border-radius:6px;padding:8px 18px;cursor:pointer;
+}
+.notesave:hover{background:var(--gold)}
+.notehint{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--verdigris)}
+.note{padding:12px 0;border-bottom:1px solid var(--edge)}
+.note:last-child{border-bottom:0}
+.note-body{
+  font-family:"EB Garamond",Georgia,serif;font-size:16.5px;line-height:1.6;
+  margin:0 0 7px;color:var(--text);white-space:pre-wrap;
+}
+.note-meta{display:flex;align-items:center;gap:12px;
+  font-family:"IBM Plex Mono",monospace;font-size:9.5px;color:var(--muted)}
+.note-meta button{
+  background:none;border:0;color:var(--muted);cursor:pointer;padding:0;
+  font-family:"IBM Plex Mono",monospace;font-size:9.5px;text-transform:uppercase;
+  letter-spacing:.07em;
+}
+.note-meta button:hover{color:var(--gold)}
+.note-meta button.note-del:hover{color:var(--rubric)}
+.note-empty{font-size:13.5px;color:var(--muted);font-style:italic;margin:14px 0 0}
+
+/* ── states ───────────────────────────────────────────── */
+.msg{
+  font-family:"EB Garamond",Georgia,serif;font-size:18px;color:var(--text-dim);
+  background:var(--raised);border:1px solid var(--edge);border-left:3px solid var(--rubric);
+  border-radius:0 9px 9px 0;padding:18px 22px;margin:0;
+}
+.msg.working{border-left-color:var(--gold)}
+.msg small{
+  display:block;font-family:"IBM Plex Mono",monospace;font-size:10.5px;
+  color:var(--muted);margin-top:7px;letter-spacing:.05em;
+}
+.msg.working small:after{content:"";animation:dots 1.4s steps(4,end) infinite}
+@keyframes dots{0%{content:""}25%{content:" ."}50%{content:" .."}75%{content:" ..."}}
+.empty{
+  background:var(--raised);border:1px solid var(--edge);border-radius:11px;
+  padding:26px 28px;max-width:620px;box-shadow:var(--shadow);
+}
+.empty h2{font-family:"EB Garamond",Georgia,serif;font-size:24px;font-weight:600;margin:0 0 13px;color:var(--gold)}
+.empty p{font-size:15px;line-height:1.68;color:var(--text-dim);margin:0 0 13px}
+.empty p:last-child{margin-bottom:0}
+
+footer{border-top:1px solid var(--edge);padding:20px 26px;font-size:12px;color:var(--muted);background:var(--raised)}
+footer div{max-width:1280px;margin:0 auto;line-height:1.7}
+.scopenote{margin-top:8px;padding-top:8px;border-top:1px solid var(--edge);color:var(--text-dim)}
+
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--edge);border-radius:5px}
+::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+
+@media(prefers-reduced-motion:no-preference){
+  .apparatus > section{animation:rise .32s cubic-bezier(.2,.7,.3,1) both}
+  .apparatus > section:nth-child(2){animation-delay:.04s}
+  .apparatus > section:nth-child(3){animation-delay:.08s}
+  .apparatus > section:nth-child(4){animation-delay:.12s}
+  @keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+}
+/* ── print ────────────────────────────────────────────────
+   Paper is white and ink is expensive, so the dark theme is forced back to
+   black-on-white regardless of the toggle. Chrome, controls and the notes box
+   are dropped; the passage and the findings are what gets carried into the
+   pulpit or the study.                                                      */
+@media print{
+  :root, [data-theme="dark"], [data-theme="light"]{
+    --ground:#fff; --raised:#fff; --raised2:#fff; --edge:#bbb;
+    --text:#000; --text-dim:#222; --muted:#555;
+    --rubric:#8a2b22; --gold:#6b5310; --verdigris:#1f5450;
+    --shadow:none; --glow:none;
+  }
+  body{background:#fff;font-size:11pt}
+  .masthead,.query,.drawer,.scrim,.toolbar,.secnav,.notes,.iltoggle,
+  .exportbar,.integrity details,footer .scopenote{display:none!important}
+  .sheet{display:block;max-width:100%;padding:0}
+  .passage{
+    position:static;max-height:none;overflow:visible;page-break-after:avoid;
+    border:0;border-bottom:2px solid #000;border-radius:0;padding:0 0 12pt;
+    margin-bottom:14pt;box-shadow:none;
+  }
+  .apparatus > section{
+    border:0;border-top:1px solid #ccc;border-radius:0;padding:10pt 0 0;
+    margin:0 0 12pt;box-shadow:none;page-break-inside:avoid;animation:none;
+  }
+  .verse{font-size:12pt;line-height:1.5}
+  .positions{grid-template-columns:1fr 1fr;gap:0}
+  .pos{border:1px solid #ccc}
+  .sig{border:0;padding:0;color:#666;font-size:8pt}
+  .mv,.claim,.kp,.conn{page-break-inside:avoid}
+  a[href]:after{content:""}
+  footer{border-top:1px solid #999;font-size:8pt;padding:8pt 0 0}
+}
+
+@media(max-width:560px){
+  /* The tagline costs a whole line on a phone and says nothing the app
+     doesn't demonstrate in five seconds. */
+  .tagline{display:none}
+  .wordmark{font-size:23px}
+  .masthead-inner{gap:10px}
+  .sheet{padding:18px 15px 70px}
+  .query{padding:16px 15px 0}
+  .masthead{padding:14px 15px}
+  .verse{font-size:19px}
+  .apparatus > section,.passage{padding:16px 17px}
+}
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <h1 class="wordmark">Appa<em>r</em>atus</h1>
+    <span class="tagline" id="t-tagline">Study the text. Every claim shows its source.</span>
+    <span class="themetoggle"><button id="hist-btn" title="History">☰</button></span>
+    <span class="themetoggle"><button id="theme-btn" title="Light / dark">◐</button></span>
+    <span class="langtoggle" role="group" aria-label="Language">
+      <button id="lang-en" aria-pressed="true">English</button>
+      <button id="lang-es" aria-pressed="false">Español</button>
+    </span>
+    <span class="status-pill" id="status">checking corpus…</span>
+  </div>
+</header>
+
+<div class="query">
+  <div class="modes" role="tablist">
+    <button id="mode-passage" role="tab" aria-selected="true"></button>
+    <button id="mode-topic" role="tab" aria-selected="false"></button>
+    <button id="mode-sermon" role="tab" aria-selected="false"></button>
+  </div>
+
+  <div class="query-row" id="row-passage">
+    <div class="field ref">
+      <label for="ref" id="t-lbl-ref">Passage</label>
+      <div class="picker">
+        <button class="picker-btn" id="picker-btn" type="button">
+          <span id="picker-label">Romans 5</span><span class="caret">▾</span>
+        </button>
+        <div class="panel" id="picker-panel">
+          <input type="text" class="panel-filter" id="picker-filter" placeholder="Filter books…">
+          <div id="picker-body"></div>
+        </div>
+      </div>
+      <input type="text" id="ref" placeholder="Romans 5:1-5" value="Romans 5:1-5"
+             autocomplete="off" style="margin-top:5px">
+    </div>
+    <div class="field ask">
+      <label for="q" id="t-lbl-q">What do you want to understand? (optional)</label>
+      <input type="text" id="q" placeholder="What does “justified” actually mean here?" autocomplete="off">
+    </div>
+    <button class="go" id="go">Open the text</button>
+  </div>
+
+  <div class="query-row" id="row-topic" style="display:none">
+    <div class="field ask">
+      <label for="topic" id="t-lbl-topic">Topic or question</label>
+      <input type="text" id="topic" autocomplete="off">
+    </div>
+    <button class="go" id="go-topic">Search</button>
+  </div>
+
+  <div class="query-row" id="row-sermon" style="display:none">
+    <div class="field ref">
+      <label for="s-ref" id="t-lbl-sref">Passage</label>
+      <input type="text" id="s-ref" placeholder="Romans 5:1-5" autocomplete="off">
+    </div>
+    <div class="field" style="flex:0 0 150px">
+      <label for="s-min" id="t-lbl-smin">Length</label>
+      <select id="s-min">
+        <option value="15">15 min</option>
+        <option value="25" selected>25 min</option>
+        <option value="40">40 min</option>
+      </select>
+    </div>
+    <div class="field ask">
+      <label for="s-aud" id="t-lbl-saud">Who are you speaking to? (optional)</label>
+      <input type="text" id="s-aud" autocomplete="off">
+    </div>
+    <button class="go" id="go-sermon">Build</button>
+  </div>
+
+  <div class="examples" id="examples"></div>
+</div>
+
+<div class="drawer" id="drawer">
+  <div class="drawer-head">
+    <span class="drawer-title" id="t-hist">History</span>
+    <button class="drawer-x" id="hist-close">✕</button>
+  </div>
+  <div class="drawer-tabs">
+    <button id="hist-all" aria-pressed="true"></button>
+    <button id="hist-saved" aria-pressed="false"></button>
+  </div>
+  <div class="drawer-search"><input type="text" id="hist-q" autocomplete="off"></div>
+  <div class="drawer-body" id="hist-body"></div>
+</div>
+<div class="scrim" id="scrim"></div>
+
+<main class="sheet">
+  <div class="passage" id="passage"></div>
+  <div class="apparatus" id="apparatus">
+    <div class="empty" id="intro"></div>
+  </div>
+</main>
+
+<footer><div id="footer-note"></div></footer>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+
+// ── translations ────────────────────────────────────────────────────
+const STR = {
+  en: {
+    tagline: "Study the text. Every claim shows its source.",
+    lblRef: "Passage", lblQ: "What do you want to understand? (optional)",
+    go: "Open the text", working: "Pulling the sources…",
+    workingSub: "lexicon · cross-references · commentators",
+    phRef: "Romans 5:1-5", phQ: "What does “justified” actually mean here?",
+    introH: "What this does differently",
+    introP1: "Most AI Bible tools give you one confident answer. This one retrieves real sources first — lexicons, cross-references, commentators from several traditions — then separates what the church broadly agrees on from what it has argued about for centuries, and shows you which is which.",
+    introP2: "Claims that can’t be traced to a retrieved source are removed before you see them, and the count is published at the bottom of every study.",
+    secSummary: "In plain words", secContext: "Where this sits",
+    ctxBook: "In the book", ctxOccasion: "Occasion",
+    secTerms: "Behind the English", termsNote: "from Strong’s",
+    secSettled: "Broadly agreed", settledNote: "bar length = how directly the text says it",
+    secDisputed: "Faithfully disputed", disputedNote: "not resolved here, on purpose",
+    disputeFoot: "Christians who love scripture land in different places here. This is a good thing to ask a pastor about.",
+    secMisread: "Commonly misread as", secConn: "Reads alongside",
+    secDeeper: "Take this further", secGrounding: "Grounding",
+    insufficient: (x) => `The sources on hand didn’t settle: ${x}.`,
+    traced: (k,t) => `${k} of ${t} claims traced to a retrieved source`,
+    removedN: (n) => ` · ${n} removed as uncited`,
+    counts: (c,w,x) => `${c} commentary passages · ${w} lexicon entries · ${x} cross-references`,
+    cached: " · cached", seeRemoved: (n) => `See what was removed (${n})`,
+    compare: (t) => `Compare — ${t}`,
+    cert: {explicit:"stated", strongly_implied:"implied", inferred:"inferred"},
+    corpus: (v,c,n) => `${v}k verses · ${c} commentary chunks · ${n} tradition${n===1?"":"s"}`,
+    corpusFail: "corpus not loaded",
+    missingTrans: (t) => `${t} is not loaded yet`,
+    missingHow: (cmd) => `Run this once, then reload:\n${cmd}`,
+    fewTraditions: "Fewer than three traditions loaded — disputed questions need breadth to be fair.",
+    scopeNote: (n, lo, hi) => `Disputed questions draw on ${n} traditions of commentary, written ${lo}–${hi}. Public-domain sources are mostly Western and Protestant, so Orthodox and modern Catholic readings may be missing.`,
+    footer: "Scripture: Berean Standard Bible, King James Version, American Standard Version (public domain). Cross-references: openbible.info (CC BY). Lexicon: Strong’s (public domain). This is a study aid, not a teacher. Take the disputed questions to your pastor.",
+    modePassage: "Passage", modeTopic: "Topic", modeSermon: "Preach",
+    lblSRef: "Passage", lblSMin: "Length",
+    lblSAud: "Who are you speaking to? (optional)",
+    phSAud: "Sunday morning, mixed ages",
+    goSermon: "Build", building: "Building the workbench…",
+    buildingSub: "text · structure · the calls you'll have to make",
+    secBigIdea: "The one thing", secShape: "How the passage moves",
+    secMovements: "Outline", secDecisions: "You'll have to decide",
+    decisionsNote: "not decided for you, on purpose",
+    secDontPreach: "Don't preach this",
+    secApply: "Finding the application", applyNote: "your congregation, not mine",
+    secWaysIn: "Ways in", secCheck: "Run past someone",
+    ifYouTake: "If you preach it this way",
+    illusPrompts: "Illustration prompts",
+    readAloud: "Read aloud", delivery: "Saying it", transitionCue: "Into the next",
+    showOriginal: "Original", showEnglish: "English",
+    interlinearNote: "Hebrew / Greek word by word",
+    secDrift: "Where they'll drift", secCut: "If you're running long",
+    cutNote: "cut in this order", minLabel: (n) => `${n} min`,
+    totalMin: (n, t) => `${n} min of content · ${t} min slot`,
+    copyMd: "Copy", downloadMd: "Download", copied: "Copied",
+    codeTitle: "This is a private preview",
+    codeHint: "Enter the access code you were given.",
+    codeGo: "Enter", codeBad: "That code isn't right.",
+    limitHour: "Hourly limit reached", limitDay: "Daily limit reached",
+    limitGlobal: "The app has hit its daily cap",
+    searchHist: "Search…", noHistMatch: "Nothing matches that.",
+    flagIt: "Something wrong?", flagTitle: "What's wrong here?",
+    flagSection: "Which part?", flagNote: "What's wrong with it? (optional)",
+    flagSend: "Report", flagThanks: "Reported — thank you",
+    flagCancel: "Cancel",
+    printIt: "Print", listenIt: "Listen", stopIt: "Stop",
+    resumeIt: (r) => `Pick up where you left off — ${r}`,
+    yourNotes: "Your notes", notePlace: "What struck you? What do you want to remember?",
+    saveNote: "Save note", noteSaved: "Saved", editNote: "Edit", deleteNote: "Delete",
+    confirmDeleteNote: "Delete this note?", noNotes: "No notes on this passage yet.",
+    noteOn: (r) => `on ${r}`,
+    history: "History", histAll: "All", histSaved: "Saved",
+    histEmpty: "Nothing yet. Studies you run are kept here.",
+    histEmptySaved: "Nothing starred yet. Tap the star on anything you want to keep.",
+    kindStudy: "Passage", kindTopic: "Topic", kindSermon: "Sermon",
+    confirmDelete: "Remove this from history?",
+    sermonExamples: [
+      {ref:"Philippians 2:1-11", aud:"Sunday morning, mixed ages"},
+      {ref:"James 1:2-8", aud:"Men's small group"},
+      {ref:"Psalm 23", aud:"Funeral"},
+      {ref:"Luke 15:11-32", aud:"Youth group"},
+    ],
+    lblTopic: "Topic or question",
+    phTopic: "What does the Bible say about hell?",
+    goTopic: "Search", searching: "Searching scripture…",
+    searchingSub: "verses · cross-reference hubs · lexicon",
+    filterBooks: "Filter books…", backToBooks: "← All books",
+    backToChapters: "← Chapters", wholeChapter: "Whole chapter",
+    pickStart: "Tap a verse to start, or take the whole chapter",
+    pickEnd: (v) => `From verse ${v} — tap where it ends`,
+    versesIn: (b,c) => `${b} ${c}`,
+    ot: "Old Testament", nt: "New Testament", chaptersIn: (b) => `Chapters in ${b}`,
+    secScope: "Scope", secAddresses: "What scripture addresses",
+    secKeyPassages: "The passages that carry weight",
+    secMisuse: "Often quoted here, but doesn’t say this",
+    misuseNote: "the part most tools skip",
+    secPositions: "Where Christians differ", secQuiet: "Where scripture is quiet",
+    neutralised: (q) => `Searched on: “${q}” — the same evidence is returned whichever side you ask from.`,
+    hub: "hub", central: "central", supporting: "supporting", tangential: "tangential",
+    topicExamples: [
+      "What does the Bible say about hell?",
+      "Verses about reincarnation",
+      "What happens after death?",
+      "Does the Bible permit divorce?",
+    ],
+    examples: [
+      {ref:"Jeremiah 29:11", q:"Is this a promise to me personally?"},
+      {ref:"John 3:16", q:""},
+      {ref:"James 2:14-26", q:"How does this square with faith alone?"},
+      {ref:"Philippians 4:13", q:"What is Paul actually saying he can do?"},
+    ],
+  },
+  es: {
+    tagline: "Estudia el texto. Cada afirmación muestra su fuente.",
+    lblRef: "Pasaje", lblQ: "¿Qué quieres entender? (opcional)",
+    go: "Abrir el texto", working: "Buscando las fuentes…",
+    workingSub: "léxico · referencias cruzadas · comentaristas",
+    phRef: "Romanos 5:1-5", phQ: "¿Qué significa realmente “justificados” aquí?",
+    introH: "En qué se diferencia",
+    introP1: "La mayoría de las herramientas bíblicas con IA te dan una respuesta segura. Esta primero busca fuentes reales — léxicos, referencias cruzadas, comentaristas de varias tradiciones — y luego separa lo que la iglesia acepta ampliamente de lo que ha debatido durante siglos, mostrándote cuál es cuál.",
+    introP2: "Las afirmaciones que no se pueden rastrear hasta una fuente se eliminan antes de que las veas, y el número se publica al final de cada estudio.",
+    secSummary: "En palabras sencillas", secContext: "Dónde se ubica",
+    ctxBook: "En el libro", ctxOccasion: "Ocasión",
+    secTerms: "Detrás del español", termsNote: "según Strong",
+    secSettled: "Ampliamente aceptado", settledNote: "la barra indica cuán directamente lo dice el texto",
+    secDisputed: "Debatido con fidelidad", disputedNote: "aquí no se resuelve, a propósito",
+    disputeFoot: "Cristianos que aman las Escrituras llegan a conclusiones distintas aquí. Vale la pena consultarlo con tu pastor.",
+    secMisread: "Se malinterpreta como", secConn: "Se lee junto con",
+    secDeeper: "Profundiza más", secGrounding: "Respaldo",
+    insufficient: (x) => `Las fuentes disponibles no resolvieron: ${x}.`,
+    traced: (k,t) => `${k} de ${t} afirmaciones respaldadas por una fuente`,
+    removedN: (n) => ` · ${n} eliminadas por falta de cita`,
+    counts: (c,w,x) => `${c} pasajes de comentario · ${w} entradas de léxico · ${x} referencias cruzadas`,
+    cached: " · en caché", seeRemoved: (n) => `Ver lo que se eliminó (${n})`,
+    compare: (t) => `Comparar — ${t}`,
+    cert: {explicit:"lo dice", strongly_implied:"implícito", inferred:"inferido"},
+    corpus: (v,c,n) => `${v}k versículos · ${c} fragmentos · ${n} tradición${n===1?"":"es"}`,
+    corpusFail: "corpus no cargado",
+    missingTrans: (t) => `${t} aún no está cargada`,
+    missingHow: (cmd) => `Ejecuta esto una vez y recarga:\n${cmd}`,
+    fewTraditions: "Menos de tres tradiciones cargadas — las preguntas debatidas necesitan amplitud para ser justas.",
+    scopeNote: (n, lo, hi) => `Las preguntas debatidas usan ${n} tradiciones de comentario, escritas entre ${lo} y ${hi}. Las fuentes de dominio público son en su mayoría occidentales y protestantes, así que pueden faltar lecturas ortodoxas y católicas modernas.`,
+    footer: "Escrituras: Reina-Valera 1909 (dominio público). Referencias cruzadas: openbible.info (CC BY). Léxico: Strong (dominio público). Esto es una ayuda para el estudio, no un maestro. Lleva las preguntas debatidas a tu pastor.",
+    modePassage: "Pasaje", modeTopic: "Tema", modeSermon: "Predicar",
+    lblSRef: "Pasaje", lblSMin: "Duración",
+    lblSAud: "¿A quiénes hablas? (opcional)",
+    phSAud: "Domingo por la mañana, todas las edades",
+    goSermon: "Preparar", building: "Preparando el taller…",
+    buildingSub: "texto · estructura · las decisiones que tendrás que tomar",
+    secBigIdea: "La idea central", secShape: "Cómo se mueve el pasaje",
+    secMovements: "Bosquejo", secDecisions: "Tendrás que decidir",
+    decisionsNote: "no se decide por ti, a propósito",
+    secDontPreach: "No prediques esto",
+    secApply: "Buscar la aplicación", applyNote: "tu congregación, no la mía",
+    secWaysIn: "Formas de entrar", secCheck: "Consulta con alguien",
+    ifYouTake: "Si lo predicas así",
+    illusPrompts: "Ideas para ilustrar",
+    readAloud: "Leer en voz alta", delivery: "Cómo decirlo", transitionCue: "Hacia lo siguiente",
+    showOriginal: "Original", showEnglish: "Español",
+    interlinearNote: "Hebreo / griego palabra por palabra",
+    secDrift: "Dónde se distraen", secCut: "Si te estás alargando",
+    cutNote: "corta en este orden", minLabel: (n) => `${n} min`,
+    totalMin: (n, t) => `${n} min de contenido · ${t} min disponibles`,
+    copyMd: "Copiar", downloadMd: "Descargar", copied: "Copiado",
+    codeTitle: "Vista previa privada",
+    codeHint: "Escribe el código de acceso que te dieron.",
+    codeGo: "Entrar", codeBad: "Ese código no es correcto.",
+    limitHour: "Límite por hora alcanzado", limitDay: "Límite diario alcanzado",
+    limitGlobal: "La app alcanzó su límite diario",
+    searchHist: "Buscar…", noHistMatch: "No hay coincidencias.",
+    flagIt: "¿Algo mal?", flagTitle: "¿Qué está mal aquí?",
+    flagSection: "¿Qué parte?", flagNote: "¿Qué tiene de malo? (opcional)",
+    flagSend: "Reportar", flagThanks: "Reportado — gracias",
+    flagCancel: "Cancelar",
+    printIt: "Imprimir", listenIt: "Escuchar", stopIt: "Detener",
+    resumeIt: (r) => `Continúa donde lo dejaste — ${r}`,
+    yourNotes: "Tus notas", notePlace: "¿Qué te llamó la atención? ¿Qué quieres recordar?",
+    saveNote: "Guardar nota", noteSaved: "Guardada", editNote: "Editar", deleteNote: "Borrar",
+    confirmDeleteNote: "¿Borrar esta nota?", noNotes: "Aún no hay notas sobre este pasaje.",
+    noteOn: (r) => `sobre ${r}`,
+    history: "Historial", histAll: "Todo", histSaved: "Guardados",
+    histEmpty: "Nada aún. Aquí se guardan tus estudios.",
+    histEmptySaved: "Nada marcado. Toca la estrella para guardar algo.",
+    kindStudy: "Pasaje", kindTopic: "Tema", kindSermon: "Sermón",
+    confirmDelete: "¿Quitar esto del historial?",
+    sermonExamples: [
+      {ref:"Filipenses 2:1-11", aud:"Domingo por la mañana"},
+      {ref:"Santiago 1:2-8", aud:"Grupo de hombres"},
+      {ref:"Salmos 23", aud:"Funeral"},
+      {ref:"Lucas 15:11-32", aud:"Grupo de jóvenes"},
+    ],
+    lblTopic: "Tema o pregunta",
+    phTopic: "¿Qué dice la Biblia sobre el infierno?",
+    goTopic: "Buscar", searching: "Buscando en las Escrituras…",
+    searchingSub: "versículos · referencias centrales · léxico",
+    filterBooks: "Filtrar libros…", backToBooks: "← Todos los libros",
+    backToChapters: "← Capítulos", wholeChapter: "Capítulo completo",
+    pickStart: "Toca un versículo para empezar, o toma el capítulo completo",
+    pickEnd: (v) => `Desde el versículo ${v} — toca dónde termina`,
+    versesIn: (b,c) => `${b} ${c}`,
+    ot: "Antiguo Testamento", nt: "Nuevo Testamento", chaptersIn: (b) => `Capítulos de ${b}`,
+    secScope: "Alcance", secAddresses: "Lo que las Escrituras dicen",
+    secKeyPassages: "Los pasajes que pesan",
+    secMisuse: "Se cita aquí, pero no dice eso",
+    misuseNote: "lo que otras herramientas omiten",
+    secPositions: "Dónde difieren los cristianos", secQuiet: "Dónde callan las Escrituras",
+    neutralised: (q) => `Búsqueda: “${q}” — se devuelve la misma evidencia sin importar desde qué lado preguntes.`,
+    hub: "central", central: "central", supporting: "apoya", tangential: "tangencial",
+    topicExamples: [
+      "¿Qué dice la Biblia sobre el infierno?",
+      "Versículos sobre la reencarnación",
+      "¿Qué pasa después de la muerte?",
+      "¿Permite la Biblia el divorcio?",
+    ],
+    examples: [
+      {ref:"Jeremías 29:11", q:"¿Es esta una promesa para mí personalmente?"},
+      {ref:"Juan 3:16", q:""},
+      {ref:"Santiago 2:14-26", q:"¿Cómo se concilia esto con la fe sola?"},
+      {ref:"Filipenses 4:13", q:"¿Qué está diciendo Pablo que puede hacer?"},
+    ],
+  },
+};
+
+let LANG = (localStorage.getItem("apparatus-lang")
+            || (navigator.language || "en").slice(0,2)) === "es" ? "es" : "en";
+const T = () => STR[LANG];
+
+function applyLanguage(){
+  const t = T();
+  document.documentElement.lang = LANG;
+  $("#t-tagline").textContent = t.tagline;
+  $("#t-lbl-ref").textContent = t.lblRef;
+  $("#t-lbl-q").textContent = t.lblQ;
+  $("#go").textContent = t.go;
+  $("#ref").placeholder = t.phRef;
+  $("#q").placeholder = t.phQ;
+  $("#footer-note").textContent = t.footer;
+  $("#lang-en").setAttribute("aria-pressed", LANG === "en");
+  $("#lang-es").setAttribute("aria-pressed", LANG === "es");
+
+  $("#mode-passage").textContent = t.modePassage;
+  $("#mode-topic").textContent = t.modeTopic;
+  $("#t-lbl-topic").textContent = t.lblTopic;
+  $("#topic").placeholder = t.phTopic;
+  $("#go-topic").textContent = t.goTopic;
+  $("#picker-filter").placeholder = t.filterBooks;
+  $("#mode-sermon").textContent = t.modeSermon;
+  $("#t-lbl-sref").textContent = t.lblSRef;
+  $("#t-lbl-smin").textContent = t.lblSMin;
+  $("#t-lbl-saud").textContent = t.lblSAud;
+  $("#s-aud").placeholder = t.phSAud;
+  $("#go-sermon").textContent = t.goSermon;
+  $("#t-hist").textContent = t.history;
+  $("#hist-all").textContent = t.histAll;
+  $("#hist-saved").textContent = t.histSaved;
+  $("#hist-q").placeholder = t.searchHist;
+  renderExamples();
+  loadBooks();
+
+  const intro = $("#intro");
+  if(intro) intro.innerHTML =
+    `<h2>${esc(t.introH)}</h2><p>${esc(t.introP1)}</p><p>${esc(t.introP2)}</p>`;
+  loadStatus();
+  offerResume();
+  fetch("/api/usage").then(r => r.json()).then(u => {
+    if(u.gated) showGate();
+  }).catch(() => {});
+}
+
+function setLanguage(l){
+  if(l === LANG) return;
+  LANG = l;
+  localStorage.setItem("apparatus-lang", l);
+  // Reset to the intro; a study written in the other language would be stale.
+  $("#passage").innerHTML = "";
+  $("#apparatus").innerHTML = `<div class="empty" id="intro"></div>`;
+  $("#ref").value = ""; $("#q").value = "";
+  $("#picker-label").textContent = STR[l].phRef.split(":")[0];
+  BOOKS_MISSING = null;
+  applyLanguage();
+}
+
+let EV = {};   // siglum -> evidence item, for hover text
+let INTERLINEAR = [], SHOW_ORIGINAL = false;
+
+function sigTitle(sig){
+  const e = EV[sig];
+  if(!e) return sig;
+  if(e.__kind === "commentary") return `${e.source}${e.author ? " — " + e.author : ""}${e.year ? " (" + e.year + ")" : ""}\n${e.tradition || ""}\n\n${e.text.slice(0,600)}`;
+  if(e.__kind === "word") return `${e.lemma || ""} ${e.translit ? "(" + e.translit + ")" : ""}\n${e.definition || ""}\n\nKJV renders: ${e.kjv_usage || "—"}`;
+  if(e.__kind === "xref")  return `${e.ref}\n\n${e.text}`;
+  return `${e.ref}\n\n${e.text}`;
+}
+const sig = s => `<span class="sig" title="${esc(sigTitle(s))}">${esc(s)}</span>`;
+const sigs = a => (a||[]).map(sig).join("");
+
+function indexEvidence(ev){
+  EV = {};
+  (ev.passage    || []).forEach(x => EV[x.siglum] = {...x, __kind:"verse"});
+  (ev.words      || []).forEach(x => EV[x.siglum] = {...x, __kind:"word"});
+  (ev.cross_refs || []).forEach(x => EV[x.siglum] = {...x, __kind:"xref"});
+  (ev.commentary || []).forEach(x => EV[x.siglum] = {...x, __kind:"commentary"});
+}
+
+// The interlinear is grouped by verse and laid out as word blocks, each
+// carrying the original, its transliteration, the contextual gloss and the
+// parsed morphology. Hebrew blocks flow right-to-left; the reading order of
+// the words is what makes an interlinear worth having.
+function renderInterlinear(ref){
+  if(!INTERLINEAR.length) return "";
+  const t = T();
+  const byVerse = {};
+  INTERLINEAR.forEach(w => (byVerse[w.vid] = byVerse[w.vid] || []).push(w));
+  const heb = INTERLINEAR[0].script === "hebrew";
+  return `<div class="passage-head">
+      <span class="passage-ref">${esc(ref)}</span>
+      <span class="passage-trans">${esc(t.interlinearNote)}</span></div>` +
+    Object.keys(byVerse).map(vid => {
+      const ws = byVerse[vid];
+      return `<div class="ilv">
+        <div class="ilv-ref">${esc(ws[0].ref)}</div>
+        <div class="ilv-words${heb ? " rtl" : ""}">${ws.map(w => `
+          <div class="ilw" title="${esc(w.morph || "")}">
+            <span class="ilw-o">${esc(w.original)}</span>
+            ${w.translit ? `<span class="ilw-t">${esc(w.translit)}</span>` : ""}
+            <span class="ilw-g">${esc(w.gloss)}</span>
+            ${w.strongs ? `<span class="ilw-s">${esc(w.strongs)}</span>` : ""}
+          </div>`).join("")}</div>
+      </div>`;
+    }).join("");
+}
+
+function paintPassage(){
+  const box = $("#passage");
+  if(SHOW_ORIGINAL && INTERLINEAR.length){
+    box.innerHTML = box.dataset.toggle + renderInterlinear(box.dataset.ref || "");
+  } else {
+    box.innerHTML = box.dataset.toggle + (box.dataset.english || "");
+  }
+  const b = $("#il-toggle");
+  if(b){
+    b.textContent = SHOW_ORIGINAL ? T().showEnglish : T().showOriginal;
+    b.addEventListener("click", () => { SHOW_ORIGINAL = !SHOW_ORIGINAL; paintPassage(); });
+  }
+}
+
+function renderPassage(ref, verses){
+  const primary = verses.filter(v => v.translation === verses[0].translation);
+  const others  = verses.filter(v => v.translation !== verses[0].translation);
+  let h = `<div class="passage-head">
+      <span class="passage-ref">${esc(ref)}</span>
+      <span class="passage-trans">${esc(primary[0]?.translation || "")}</span>
+    </div>`;
+  h += primary.map(v =>
+    `<p class="verse"><span class="vnum">${esc(v.ref.split(":").pop())}</span>${esc(v.text)}</p>`
+  ).join("");
+  if(others.length){
+    const t = others[0].translation;
+    h += `<details class="alt-trans"><summary>${esc(T().compare(t))}</summary>
+      <p>${others.map(v => esc(v.text)).join(" ")}</p></details>`;
+  }
+  const box = $("#passage");
+  box.dataset.ref = ref;
+  box.dataset.english = h;
+  box.dataset.toggle = INTERLINEAR.length
+    ? `<div class="iltoggle"><button id="il-toggle"></button></div>` : "";
+  paintPassage();
+}
+
+
+
+function renderStudy(d){
+  const s = d.study, ev = d.evidence, ig = d.integrity;
+  let h = "";
+
+  if(s.summary){
+    h += `<section><div class="sec-head"><span class="sec-title">${esc(T().secSummary)}</span>
+      ${s.context?.genre ? `<span class="sec-note">${esc(s.context.genre)}</span>` : ""}</div>
+      <p class="summary-text">${esc(s.summary)}</p></section>`;
+  }
+
+  if(s.context && (s.context.literary || s.context.historical)){
+    h += `<section><div class="sec-head"><span class="sec-title">${esc(T().secContext)}</span></div>
+      <div class="ctx">
+        ${s.context.literary   ? `<div><b>${esc(T().ctxBook)}</b>${esc(s.context.literary)}</div>` : ""}
+        ${s.context.historical ? `<div><b>${esc(T().ctxOccasion)}</b>${esc(s.context.historical)}</div>` : ""}
+      </div></section>`;
+  }
+
+  if(s.key_terms?.length){
+    h += `<section><div class="sec-head"><span class="sec-title">${esc(T().secTerms)}</span>
+      <span class="sec-note">${esc(T().termsNote)}</span></div><div class="terms">`;
+    h += s.key_terms.map(t => `<div class="term">
+        <div class="term-top">
+          ${t.original ? `<span class="term-orig">${esc(t.original)}</span>` : ""}
+          ${t.translit ? `<span class="term-tr">${esc(t.translit)}</span>` : ""}
+          <span class="term-sur">“${esc(t.surface)}”</span>${sig(t.strongs)}
+        </div>
+        <p class="term-why">${esc(t.why_it_matters)}</p>
+      </div>`).join("");
+    h += `</div></section>`;
+  }
+
+  if(s.settled?.length){
+    h += `<section><div class="sec-head"><span class="sec-title">${esc(T().secSettled)}</span>
+      <span class="sec-note">${esc(T().settledNote)}</span></div>`;
+    h += s.settled.map(c => `<div class="claim">
+        <span class="cert" data-c="${esc(c.certainty)}"><i></i><small>${T().cert[c.certainty]||""}</small></span>
+        <span class="claim-body">${esc(c.claim)}${sigs(c.cites)}</span>
+      </div>`).join("");
+    h += `</section>`;
+  }
+
+  if(s.disputed?.length){
+    h += `<section><div class="sec-head"><span class="sec-title">${esc(T().secDisputed)}</span>
+      <span class="sec-note">${esc(T().disputedNote)}</span></div>`;
+    h += s.disputed.map(d2 => `<div class="dispute">
+        <p class="dispute-q">${esc(d2.question)}</p>
+        ${d2.why_it_is_hard ? `<p class="dispute-why">${esc(d2.why_it_is_hard)}</p>` : ""}
+        <div class="positions">${d2.positions.map(p => `<div class="pos">
+            <div class="pos-held">${esc(p.held_by)}</div>
+            <p class="pos-view">${esc(p.view)}</p>
+            <p class="pos-reason">${esc(p.reasoning)}${sigs(p.cites)}</p>
+            ${p.key_texts?.length ? `<div class="pos-texts">${p.key_texts.map(esc).join(" · ")}</div>` : ""}
+          </div>`).join("")}</div>
+        <div class="dispute-foot">${esc(T().disputeFoot)}</div>
+      </div>`).join("");
+    h += `</section>`;
+  }
+
+  if(s.common_misreadings?.length){
+    h += `<section><div class="sec-head"><span class="sec-title">${esc(T().secMisread)}</span></div>`;
+    h += s.common_misreadings.map(m => `<div class="misread">
+        <p class="misread-x">${esc(m.misreading)}</p>
+        <p class="misread-fix">${esc(m.correction)}${sigs(m.cites)}</p>
+      </div>`).join("");
+    h += `</section>`;
+  }
+
+  if(s.connections?.length){
+    h += `<section><div class="sec-head"><span class="sec-title">${esc(T().secConn)}</span></div>`;
+    h += s.connections.map(c => `<div class="conn">
+        <span class="conn-ref">${esc(c.ref)}</span>
+        <span>${esc(c.relation)}${sigs(c.cites)}</span></div>`).join("");
+    h += `</section>`;
+  }
+
+  if(s.go_deeper?.length || s.insufficient_evidence?.length){
+    h += `<section><div class="sec-head"><span class="sec-title">${esc(T().secDeeper)}</span></div>
+      <div class="deeper">`;
+    if(s.go_deeper?.length)
+      h += `<ul>${s.go_deeper.map(x => `<li>${esc(x)}</li>`).join("")}</ul>`;
+    if(s.insufficient_evidence?.length)
+      h += `<p>${esc(T().insufficient(s.insufficient_evidence.join("; ")))}</p>`;
+    h += `</div></section>`;
+  }
+
+  // integrity meter
+  const kept = ig.claims_checked - ig.claims_removed;
+  const ticks = Array.from({length: Math.min(ig.claims_checked, 40)}, (_, i) =>
+    `<i class="${i < kept * Math.min(ig.claims_checked,40)/Math.max(ig.claims_checked,1) ? "on" : "off"}"></i>`).join("");
+  h += `<section class="integrity">
+    <div class="sec-title">${esc(T().secGrounding)}</div>
+    <div class="meter">${ticks || '<i class="on"></i>'}</div>
+    <div class="integrity-line">
+      ${esc(T().traced(kept, ig.claims_checked))}${ig.claims_removed ? esc(T().removedN(ig.claims_removed)) : ""}<br>
+      ${esc(T().counts(ev.commentary.length, ev.words.length, ev.cross_refs.length))}${d.cached ? esc(T().cached) : ` · ${d.elapsed_ms}ms`}
+    </div>`;
+  if(ig.removed?.length){
+    h += `<details><summary>${esc(T().seeRemoved(ig.removed.length))}</summary><ul>`;
+    h += ig.removed.map(r => `<li>${esc(r.reason)} — “${esc(r.claim.slice(0,120))}”</li>`).join("");
+    h += `</ul></details>`;
+  }
+  h += `</section>`;
+
+  $("#apparatus").innerHTML = h;
+}
+
+
+// ── mode switching ──────────────────────────────────────────────────
+let MODE = "passage";
+function setMode(m){
+  MODE = m;
+  ["passage","topic","sermon"].forEach(k => {
+    $("#mode-" + k).setAttribute("aria-selected", m === k);
+    $("#row-" + k).style.display = m === k ? "flex" : "none";
+  });
+  renderExamples();
+}
+
+function renderExamples(){
+  const t = T();
+  const box = $("#examples");
+  if(MODE === "sermon"){
+    box.innerHTML = t.sermonExamples.map(e =>
+      `<button data-ref="${esc(e.ref)}" data-aud="${esc(e.aud)}">${esc(e.ref)} · ${esc(e.aud)}</button>`).join("");
+    box.querySelectorAll("button").forEach(b =>
+      b.addEventListener("click", () => {
+        $("#s-ref").value = b.dataset.ref; $("#s-aud").value = b.dataset.aud; runSermon();
+      }));
+    return;
+  }
+  if(MODE === "topic"){
+    box.innerHTML = t.topicExamples.map(x =>
+      `<button data-topic="${esc(x)}">${esc(x)}</button>`).join("");
+    box.querySelectorAll("button").forEach(b =>
+      b.addEventListener("click", () => { $("#topic").value = b.dataset.topic; runTopic(); }));
+  } else {
+    box.innerHTML = t.examples.map(e =>
+      `<button data-ref="${esc(e.ref)}" data-q="${esc(e.q)}">${esc(e.ref)}</button>`).join("");
+    box.querySelectorAll("button").forEach(b =>
+      b.addEventListener("click", () => {
+        $("#ref").value = b.dataset.ref; $("#q").value = b.dataset.q; run();
+      }));
+  }
+}
+
+// ── book / chapter picker ───────────────────────────────────────────
+let BOOKS = [], pickerBook = null, pickerChapter = null, pickerStart = null;
+let BOOKS_MISSING = null;   // {translation, fix} when the text isn't ingested
+
+async function loadBooks(){
+  try{
+    const r = await fetch(`/api/books?lang=${LANG}`);
+    const d = await r.json();
+    BOOKS = d.books || [];
+    BOOKS_MISSING = d.missing ? {translation: d.translation, fix: d.fix} : null;
+  }catch{ BOOKS = []; BOOKS_MISSING = null; }
+  renderPicker();
+  if(BOOKS_MISSING) flagMissing();
+}
+
+// A language with no text loaded is a setup gap, not a failure. Make it
+// obvious and say exactly what to run, rather than showing an empty menu.
+function flagMissing(){
+  const t = T();
+  $("#status").textContent = t.missingTrans(BOOKS_MISSING.translation);
+  $("#status").style.color = "var(--rubric)";
+  $("#status").style.borderColor = "var(--rubric)";
+  const intro = $("#intro");
+  if(intro){
+    intro.innerHTML =
+      `<h2>${esc(t.missingTrans(BOOKS_MISSING.translation))}</h2>
+       <p>${esc(t.missingHow("").trim())}</p>
+       <pre class="cmd">${esc(BOOKS_MISSING.fix)}</pre>`;
+  }
+}
+
+function renderPicker(){
+  const t = T(), body = $("#picker-body"), filter = ($("#picker-filter").value || "").toLowerCase();
+
+  // Step 3 — verses. Chapters can run long (Psalm 119 is 176 verses), so
+  // picking a range has to be possible without typing it.
+  if(pickerBook && pickerChapter){
+    const b = BOOKS.find(x => x.osis === pickerBook);
+    const ch = b && b.chapters.find(c => c.n === pickerChapter);
+    if(!ch){ pickerChapter = null; return renderPicker(); }
+    const go = ref => {
+      $("#ref").value = ref; $("#picker-label").textContent = ref;
+      pickerStart = null; closePicker(); run();
+    };
+    body.innerHTML =
+      `<button class="panel-back" id="picker-back">${esc(t.backToChapters)}</button>
+       <h4>${esc(t.versesIn(b.name, ch.n))}</h4>
+       <button class="wholechap" id="whole-chap">${esc(t.wholeChapter)} · ${ch.verses}</button>
+       <p class="pickhint">${esc(pickerStart ? t.pickEnd(pickerStart) : t.pickStart)}</p>
+       <div class="chaplist verselist">${
+         Array.from({length: ch.verses}, (_, i) => i + 1).map(v =>
+           `<button data-v="${v}" class="${
+             pickerStart && v >= pickerStart ? "inrange" : ""}${
+             pickerStart === v ? " startv" : ""}">${v}</button>`).join("")}</div>`;
+    $("#picker-back").addEventListener("click", () => {
+      pickerChapter = null; pickerStart = null; renderPicker();
+    });
+    $("#whole-chap").addEventListener("click", () => go(`${b.name} ${ch.n}`));
+    body.querySelectorAll(".verselist button").forEach(btn =>
+      btn.addEventListener("click", () => {
+        const v = +btn.dataset.v;
+        if(pickerStart === null){ pickerStart = v; renderPicker(); }
+        else if(v === pickerStart){ go(`${b.name} ${ch.n}:${v}`); }
+        else {
+          const [a, z] = v < pickerStart ? [v, pickerStart] : [pickerStart, v];
+          go(`${b.name} ${ch.n}:${a}-${z}`);
+        }
+      }));
+    return;
+  }
+
+  if(pickerBook){
+    const b = BOOKS.find(x => x.osis === pickerBook);
+    if(!b){ pickerBook = null; return renderPicker(); }
+    body.innerHTML =
+      `<button class="panel-back" id="picker-back">${esc(t.backToBooks)}</button>
+       <h4>${esc(t.chaptersIn(b.name))}</h4>
+       <div class="chaplist">${b.chapters.map(c =>
+         `<button data-ch="${c.n}">${c.n}</button>`).join("")}</div>`;
+    $("#picker-back").addEventListener("click", () => { pickerBook = null; renderPicker(); });
+    body.querySelectorAll(".chaplist button").forEach(btn =>
+      btn.addEventListener("click", () => {
+        pickerChapter = +btn.dataset.ch; pickerStart = null; renderPicker();
+      }));
+    return;
+  }
+
+  if(BOOKS_MISSING){
+    body.innerHTML =
+      `<h4>${esc(T().missingTrans(BOOKS_MISSING.translation))}</h4>
+       <pre class="cmd">${esc(BOOKS_MISSING.fix)}</pre>`;
+    return;
+  }
+
+  const match = b => !filter || b.name.toLowerCase().includes(filter);
+  const group = (test, heading) => {
+    const list = BOOKS.filter(b => b.testament === test && match(b));
+    if(!list.length) return "";
+    return `<h4>${esc(heading)}</h4><div class="booklist">${list.map(b =>
+      `<button data-osis="${esc(b.osis)}">${esc(b.name)}</button>`).join("")}</div>`;
+  };
+  body.innerHTML = group("ot", t.ot) + group("nt", t.nt);
+  body.querySelectorAll(".booklist button").forEach(btn =>
+    btn.addEventListener("click", () => { pickerBook = btn.dataset.osis; renderPicker(); }));
+}
+
+function openPicker(){
+  $("#picker-panel").classList.add("open");
+  $("#picker-filter").style.display = BOOKS_MISSING ? "none" : "";
+  $("#picker-filter").value = "";
+  pickerBook = null; pickerChapter = null; pickerStart = null;
+  renderPicker(); $("#picker-filter").focus();
+}
+function closePicker(){ $("#picker-panel").classList.remove("open"); }
+
+// ── topical study rendering ─────────────────────────────────────────
+function renderTopic(d){
+  const s = d.study, ev = d.evidence, ig = d.integrity, t = T();
+  let h = "";
+
+  $("#passage").innerHTML =
+    `<div class="passage-head"><span class="passage-ref">${esc(s.question || d.topic)}</span></div>
+     ${ev.passage.slice(0,14).map(v =>
+       `<p class="verse" style="font-size:16px">
+          <span class="vnum">${esc(v.ref)}</span>${esc(v.text)}
+          ${v.why_retrieved === "cross-reference hub" ? `<span class="hubtag">${esc(t.hub)}</span>` : ""}
+        </p>`).join("")}`;
+
+  if(s.scope_note){
+    h += `<section><div class="sec-head"><span class="sec-title">${esc(t.secScope)}</span></div>
+      <p class="scope">${esc(s.scope_note)}</p></section>`;
+  }
+
+  if(s.what_scripture_addresses?.length){
+    h += `<section><div class="sec-head"><span class="sec-title">${esc(t.secAddresses)}</span>
+      <span class="sec-note">${esc(t.settledNote)}</span></div>`;
+    h += s.what_scripture_addresses.map(c => `<div class="claim">
+        <span class="cert" data-c="${esc(c.certainty)}"><i></i><small>${T().cert[c.certainty]||""}</small></span>
+        <span class="claim-body">${esc(c.claim)}${sigs(c.cites)}</span></div>`).join("");
+    h += `</section>`;
+  }
+
+  if(s.key_passages?.length){
+    h += `<section><div class="sec-head"><span class="sec-title">${esc(t.secKeyPassages)}</span></div>`;
+    h += s.key_passages.map(k => `<div class="kp">
+        <span class="kp-ref">${esc(k.ref)}</span>
+        <span>${esc(k.what_it_says)}${sigs(k.cites)}
+          <span class="kp-w" data-w="${esc(k.weight)}">${esc(t[k.weight]||k.weight)}</span></span>
+      </div>`).join("");
+    h += `</section>`;
+  }
+
+  if(s.commonly_cited_but_does_not_say_this?.length){
+    h += `<section><div class="sec-head"><span class="sec-title">${esc(t.secMisuse)}</span>
+      <span class="sec-note">${esc(t.misuseNote)}</span></div>`;
+    h += s.commonly_cited_but_does_not_say_this.map(m => `<div class="misuse">
+        <div class="misuse-ref">${esc(m.ref)}</div>
+        <p class="misuse-pop">${esc(m.popular_use)}</p>
+        <p class="misuse-real">${esc(m.what_it_actually_says)}${sigs(m.cites)}</p>
+      </div>`).join("");
+    h += `</section>`;
+  }
+
+  if(s.key_terms?.length){
+    h += `<section><div class="sec-head"><span class="sec-title">${esc(t.secTerms)}</span>
+      <span class="sec-note">${esc(t.termsNote)}</span></div><div class="terms">`;
+    h += s.key_terms.map(x => `<div class="term"><div class="term-top">
+        ${x.original ? `<span class="term-orig">${esc(x.original)}</span>` : ""}
+        ${x.translit ? `<span class="term-tr">${esc(x.translit)}</span>` : ""}
+        <span class="term-sur">“${esc(x.surface)}”</span>${sig(x.strongs)}</div>
+        <p class="term-why">${esc(x.why_it_matters)}</p></div>`).join("");
+    h += `</div></section>`;
+  }
+
+  if(s.positions?.length){
+    h += `<section><div class="sec-head"><span class="sec-title">${esc(t.secPositions)}</span>
+      <span class="sec-note">${esc(t.disputedNote)}</span></div>
+      <div class="dispute"><div class="positions">`;
+    h += s.positions.map(pz => `<div class="pos">
+        <div class="pos-held">${esc(pz.held_by)}</div>
+        <p class="pos-view">${esc(pz.view)}</p>
+        <p class="pos-reason">${esc(pz.reasoning)}${sigs(pz.cites)}</p>
+        ${pz.key_texts?.length ? `<div class="pos-texts">${pz.key_texts.map(esc).join(" · ")}</div>` : ""}
+      </div>`).join("");
+    h += `</div><div class="dispute-foot">${esc(t.disputeFoot)}</div></div></section>`;
+  }
+
+  if(s.where_scripture_is_quiet?.length){
+    h += `<section><div class="sec-head"><span class="sec-title">${esc(t.secQuiet)}</span></div>
+      <div class="quiet"><ul>${s.where_scripture_is_quiet.map(x =>
+        `<li>${esc(x)}</li>`).join("")}</ul></div></section>`;
+  }
+
+  if(s.go_deeper?.length){
+    h += `<section><div class="sec-head"><span class="sec-title">${esc(t.secDeeper)}</span></div>
+      <div class="deeper"><ul>${s.go_deeper.map(x => `<li>${esc(x)}</li>`).join("")}</ul>
+      ${s.insufficient_evidence?.length ?
+        `<p>${esc(t.insufficient(s.insufficient_evidence.join("; ")))}</p>` : ""}</div></section>`;
+  }
+
+  const kept = ig.claims_checked - ig.claims_removed;
+  h += `<section class="integrity">
+    <div class="sec-title">${esc(t.secGrounding)}</div>
+    <div class="meter">${Array.from({length: Math.min(ig.claims_checked,40)||1},(_,i)=>
+      `<i class="${i < kept ? "on":"off"}"></i>`).join("")}</div>
+    <div class="integrity-line">
+      ${esc(t.traced(kept, ig.claims_checked))}${ig.claims_removed ? esc(t.removedN(ig.claims_removed)) : ""}<br>
+      ${esc(t.neutralised(d.neutralised_query || d.topic))}<br>
+      ${ev.passage.length} verses · ${ev.words.length} lexicon · ${ev.commentary.length} commentary
+      ${d.cached ? esc(t.cached) : ` · ${d.elapsed_ms}ms`}
+    </div>`;
+  if(ig.removed?.length){
+    h += `<details><summary>${esc(t.seeRemoved(ig.removed.length))}</summary><ul>${
+      ig.removed.map(r => `<li>${esc(r.reason)} — “${esc(r.claim.slice(0,120))}”</li>`).join("")
+    }</ul></details>`;
+  }
+  h += `</section>`;
+  $("#apparatus").innerHTML = h;
+}
+
+async function runTopic(){
+  const topic = $("#topic").value.trim();
+  if(!topic) return;
+  $("#go-topic").disabled = true;
+  $("#passage").innerHTML = "";
+  $("#apparatus").innerHTML =
+    `<p class="msg working">${esc(T().searching)}<small>${esc(T().searchingSub)}</small></p>`;
+  try{
+    const r = await fetch("/api/topic", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({topic, lang:LANG})
+    });
+    const d = await r.json();
+    if(!r.ok){ if(await handleApiError(r, d)) return; throw new Error(d.error); }
+    indexEvidence(d.evidence);
+    renderTopic(d);
+    decorate();
+    rememberView({kind:"topic", ref:d.topic, q:null, cache_key:null});
+  }catch(e){
+    $("#apparatus").innerHTML = `<p class="msg">${esc(e.message)}</p>`;
+  }finally{
+    $("#go-topic").disabled = false;
+  }
+}
+
+
+// ── theme ───────────────────────────────────────────────────────────
+function setTheme(t){
+  document.documentElement.setAttribute("data-theme", t);
+  localStorage.setItem("apparatus-theme", t);
+  $("#theme-btn").textContent = t === "dark" ? "◐" : "◑";
+}
+setTheme(localStorage.getItem("apparatus-theme") || "dark");
+
+// ── section nav + grounding badge ───────────────────────────────────
+// Built after render by reading the DOM, so both renderers get it for free
+// and neither has to know it exists.
+function decorate(){
+  const box = $("#apparatus");
+  const sections = [...box.querySelectorAll(":scope > section")];
+  if(sections.length < 3) return;
+
+  sections.forEach((s, i) => {
+    if(!s.id) s.id = "sec-" + i;
+  });
+
+  const links = sections
+    .filter(s => !s.classList.contains("integrity"))
+    .map(s => {
+      const t = s.querySelector(".sec-title");
+      return t ? `<a href="#${s.id}">${esc(t.textContent)}</a>` : "";
+    }).join("");
+
+  // Grounding is the distinctive thing this tool does. Burying it at the
+  // bottom in 10px mono was hiding the point; it goes up top.
+  const integ = box.querySelector(".integrity .integrity-line");
+  let badge = "";
+  if(integ){
+    const m = integ.textContent.match(/(\d+)\D+(\d+)/);
+    if(m){
+      const kept = +m[1], total = +m[2], pct = total ? Math.round(kept/total*100) : 100;
+      const removed = total - kept;
+      badge = `<div class="groundbadge${removed ? " warn" : ""}">
+        <span class="gb-n">${pct}%</span>
+        <span class="gb-t"><b>${kept} of ${total} claims</b> traced to a retrieved source${
+          removed ? `<br>${removed} removed as uncited` : ""}</span></div>`;
+    }
+  }
+
+  const head = document.createElement("div");
+  head.innerHTML = flagBar() + badge + `<nav class="secnav">${links}</nav>`;
+  box.prepend(head);
+  wireToolbar();
+}
+
+
+// ── sermon workbench ────────────────────────────────────────────────
+let LAST_SERMON = null;
+
+function renderSermon(d){
+  const s = d.study, ev = d.evidence, ig = d.integrity, t = T();
+  LAST_SERMON = d;
+
+  $("#passage").innerHTML =
+    `<div class="passage-head"><span class="passage-ref">${esc(d.ref)}</span>
+       <span class="passage-trans">${esc(ev.passage[0]?.translation || "")}</span></div>
+     ${ev.passage.filter(v => v.translation === ev.passage[0]?.translation).map(v =>
+       `<p class="verse"><span class="vnum">${esc(v.ref.split(":").pop())}</span>${esc(v.text)}</p>`
+     ).join("")}`;
+
+  let h = `<div class="exportbar">
+      <button id="copy-md">${esc(t.copyMd)}</button>
+      <button id="dl-md">${esc(t.downloadMd)}</button>
+    </div>`;
+
+  if(s.big_idea){
+    h += `<section><div class="sec-head"><span class="sec-title">${esc(t.secBigIdea)}</span>
+      ${d.opts?.minutes ? `<span class="sec-note">${esc(d.opts.minutes)} min</span>` : ""}</div>
+      <p class="bigidea">${esc(s.big_idea)}</p>
+      ${s.the_shape ? `<p class="shape"><b>${esc(t.secShape)}</b>${esc(s.the_shape)}</p>` : ""}
+    </section>`;
+  }
+
+  if(s.movements?.length){
+    const totMin = s.movements.reduce((a, m) => a + (+m.minutes || 0), 0);
+    h += `<section><div class="sec-head"><span class="sec-title">${esc(t.secMovements)}</span>
+      ${totMin ? `<span class="sec-note">${esc(t.totalMin(totMin, d.opts?.minutes || "?"))}</span>` : ""}</div>`;
+    h += s.movements.map((m, i) => `<div class="mv">
+        <div class="mv-n">${i + 1}</div>
+        <div class="mv-body">
+          <div class="mv-top"><span class="mv-title">${esc(m.title)}</span>
+            <span class="mv-ref">${esc(m.verses)}</span>
+            ${m.minutes ? `<span class="mv-min">${esc(t.minLabel(m.minutes))}</span>` : ""}</div>
+          ${m.read_aloud ? `<p class="mv-read"><b>${esc(t.readAloud)}</b>${esc(m.read_aloud)}</p>` : ""}
+          <p class="mv-point">${esc(m.the_point)}${sigs(m.cites)}</p>
+          ${m.delivery ? `<p class="mv-deliv"><b>${esc(t.delivery)}</b>${esc(m.delivery)}</p>` : ""}
+          ${m.supporting_detail?.length ? `<ul class="mv-det">${
+            m.supporting_detail.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+          ${m.illustration_prompts?.length ? `<div class="mv-ill">
+            <b>${esc(t.illusPrompts)}</b><ul>${
+            m.illustration_prompts.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
+          ${m.transition_cue ? `<p class="mv-trans"><b>${esc(t.transitionCue)}</b>
+            “${esc(m.transition_cue)}”</p>` : ""}
+        </div></div>`).join("");
+    h += `</section>`;
+  }
+
+  if(s.decisions_to_make?.length){
+    h += `<section><div class="sec-head"><span class="sec-title">${esc(t.secDecisions)}</span>
+      <span class="sec-note">${esc(t.decisionsNote)}</span></div>`;
+    h += s.decisions_to_make.map(dc => `<div class="dispute">
+        <p class="dispute-q">${esc(dc.question)}</p>
+        <p class="dispute-why">${esc(dc.why_it_matters)}</p>
+        <div class="positions">${dc.options.map(o => `<div class="pos">
+            <div class="pos-held">${esc(o.held_by)}</div>
+            <p class="pos-view">${esc(o.view)}</p>
+            <p class="pos-reason"><em>${esc(t.ifYouTake)}:</em> ${esc(o.if_you_take_this)}</p>
+          </div>`).join("")}</div>
+      </div>`).join("");
+    h += `</section>`;
+  }
+
+  if(s.do_not_preach?.length){
+    h += `<section><div class="sec-head"><span class="sec-title">${esc(t.secDontPreach)}</span></div>`;
+    h += s.do_not_preach.map(x => `<div class="misuse">
+        <p class="misuse-pop" style="text-decoration:line-through;text-decoration-color:var(--rubric)">${esc(x.claim)}</p>
+        <p class="misuse-real">${esc(x.why_not)}${sigs(x.cites)}</p></div>`).join("");
+    h += `</section>`;
+  }
+
+  if(s.application_prompts?.length){
+    h += `<section><div class="sec-head"><span class="sec-title">${esc(t.secApply)}</span>
+      <span class="sec-note">${esc(t.applyNote)}</span></div>
+      <div class="quiet"><ul>${s.application_prompts.map(x =>
+        `<li>${esc(x)}</li>`).join("")}</ul></div></section>`;
+  }
+
+  if(s.where_they_lose_you?.length){
+    h += `<section><div class="sec-head"><span class="sec-title">${esc(t.secDrift)}</span></div>`;
+    h += s.where_they_lose_you.map(w => `<div class="drift">
+        <div class="drift-m">${esc(w.moment)}</div>
+        <p class="drift-w">${esc(w.why)}</p>
+        <p class="drift-h">${esc(w.what_helps)}</p></div>`).join("");
+    h += `</section>`;
+  }
+
+  if(s.ways_in?.length){
+    h += `<section><div class="sec-head"><span class="sec-title">${esc(t.secWaysIn)}</span></div>
+      <div class="deeper"><ul>${s.ways_in.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div></section>`;
+  }
+
+  if(s.cut_first?.length){
+    h += `<section><div class="sec-head"><span class="sec-title">${esc(t.secCut)}</span>
+      <span class="sec-note">${esc(t.cutNote)}</span></div>
+      <ol class="cutlist">${s.cut_first.map(x => `<li>${esc(x)}</li>`).join("")}</ol></section>`;
+  }
+
+  if(s.check_with_someone?.length){
+    h += `<section><div class="sec-head"><span class="sec-title">${esc(t.secCheck)}</span></div>
+      <div class="deeper"><ul>${s.check_with_someone.map(x => `<li>${esc(x)}</li>`).join("")}</ul>
+      ${s.insufficient_evidence?.length ?
+        `<p>${esc(t.insufficient(s.insufficient_evidence.join("; ")))}</p>` : ""}</div></section>`;
+  }
+
+  const kept = ig.claims_checked - ig.claims_removed;
+  h += `<section class="integrity"><div class="sec-title">${esc(t.secGrounding)}</div>
+    <div class="meter">${Array.from({length: Math.min(ig.claims_checked,40)||1},(_,i)=>
+      `<i class="${i < kept ? "on":"off"}"></i>`).join("")}</div>
+    <div class="integrity-line">${esc(t.traced(kept, ig.claims_checked))}${
+      ig.claims_removed ? esc(t.removedN(ig.claims_removed)) : ""}<br>
+      ${ev.commentary.length} commentary · ${ev.words.length} lexicon · ${ev.cross_refs.length} cross-references${
+      d.cached ? esc(t.cached) : ` · ${d.elapsed_ms}ms`}</div>`;
+  if(ig.warnings?.length){
+    h += `<details><summary>${esc(ig.warnings.length)} note(s)</summary><ul>${
+      ig.warnings.map(w => `<li>${esc(w)}</li>`).join("")}</ul></details>`;
+  }
+  h += `</section>`;
+
+  $("#apparatus").innerHTML = h;
+  $("#copy-md").addEventListener("click", () => {
+    navigator.clipboard.writeText(sermonMarkdown(d));
+    $("#copy-md").textContent = T().copied;
+    setTimeout(() => $("#copy-md").textContent = T().copyMd, 1600);
+  });
+  $("#dl-md").addEventListener("click", () => {
+    const blob = new Blob([sermonMarkdown(d)], {type:"text/markdown"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = d.ref.replace(/[^\w]+/g, "-").toLowerCase() + ".md";
+    a.click(); URL.revokeObjectURL(a.href);
+  });
+}
+
+// Preachers work in Word, Docs, or on paper. Markdown pastes cleanly into all
+// three and keeps the structure, so the workbench can leave the browser.
+function sermonMarkdown(d){
+  const s = d.study, t = T();
+  const L = [`# ${d.ref}`, ""];
+  if(d.opts?.audience) L.push(`*${d.opts.audience} · ${d.opts.minutes} min*`, "");
+  if(s.big_idea) L.push(`## ${t.secBigIdea}`, "", s.big_idea, "");
+  if(s.the_shape) L.push(`**${t.secShape}:** ${s.the_shape}`, "");
+  (s.movements || []).forEach((m, i) => {
+    L.push(`## ${i + 1}. ${m.title}  — ${m.verses}${m.minutes ? `  (${m.minutes} min)` : ""}`, "");
+    if(m.read_aloud) L.push(`> **${t.readAloud}:** ${m.read_aloud}`, "");
+    L.push(m.the_point, "");
+    if(m.delivery) L.push(`*${t.delivery}: ${m.delivery}*`, "");
+    (m.supporting_detail || []).forEach(x => L.push(`- ${x}`));
+    if(m.supporting_detail?.length) L.push("");
+    if(m.illustration_prompts?.length){
+      L.push(`*${t.illusPrompts}:*`);
+      m.illustration_prompts.forEach(x => L.push(`- ${x}`));
+      L.push("");
+    }
+    if(m.transition_cue) L.push(`**${t.transitionCue}:** "${m.transition_cue}"`, "");
+  });
+  if(s.decisions_to_make?.length){
+    L.push(`## ${t.secDecisions}`, "");
+    s.decisions_to_make.forEach(dc => {
+      L.push(`**${dc.question}**`, "", `${dc.why_it_matters}`, "");
+      dc.options.forEach(o =>
+        L.push(`- **${o.held_by}** — ${o.view}`, `  - ${t.ifYouTake}: ${o.if_you_take_this}`));
+      L.push("");
+    });
+  }
+  if(s.do_not_preach?.length){
+    L.push(`## ${t.secDontPreach}`, "");
+    s.do_not_preach.forEach(x => L.push(`- ~~${x.claim}~~ — ${x.why_not}`));
+    L.push("");
+  }
+  if(s.application_prompts?.length){
+    L.push(`## ${t.secApply}`, "");
+    s.application_prompts.forEach(x => L.push(`- ${x}`));
+    L.push("");
+  }
+  if(s.where_they_lose_you?.length){
+    L.push(`## ${t.secDrift}`, "");
+    s.where_they_lose_you.forEach(w =>
+      L.push(`- **${w.moment}** — ${w.why}`, `  - ${w.what_helps}`));
+    L.push("");
+  }
+  if(s.ways_in?.length){
+    L.push(`## ${t.secWaysIn}`, "");
+    s.ways_in.forEach(x => L.push(`- ${x}`)); L.push("");
+  }
+  if(s.cut_first?.length){
+    L.push(`## ${t.secCut}`, "");
+    s.cut_first.forEach((x, i) => L.push(`${i + 1}. ${x}`)); L.push("");
+  }
+  if(s.check_with_someone?.length){
+    L.push(`## ${t.secCheck}`, "");
+    s.check_with_someone.forEach(x => L.push(`- ${x}`)); L.push("");
+  }
+  L.push("---", "", "*Study aid, not a teacher. The decisions above are yours to make.*");
+  return L.join("\n");
+}
+
+async function runSermon(){
+  const ref = $("#s-ref").value.trim();
+  if(!ref) return;
+  $("#go-sermon").disabled = true;
+  $("#passage").innerHTML = "";
+  $("#apparatus").innerHTML =
+    `<p class="msg working">${esc(T().building)}<small>${esc(T().buildingSub)}</small></p>`;
+  try{
+    const r = await fetch("/api/sermon", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ref, lang:LANG, minutes:$("#s-min").value,
+                            audience:$("#s-aud").value.trim()})
+    });
+    const d = await r.json();
+    if(!r.ok){ if(await handleApiError(r, d)) return; throw new Error(d.error); }
+    indexEvidence(d.evidence);
+    renderSermon(d);
+    decorate();
+    rememberView({kind:"sermon", ref:d.ref, q:null, cache_key:null});
+    mountNotes(d.ref);
+  }catch(e){
+    $("#apparatus").innerHTML = `<p class="msg">${esc(e.message)}</p>`;
+  }finally{
+    $("#go-sermon").disabled = false;
+  }
+}
+
+
+// ── history ─────────────────────────────────────────────────────────
+// Everything generated is already persisted server-side for caching; this is
+// just the door back to it. Nothing new is stored — the drawer reads what the
+// cache already holds.
+let HIST_SAVED_ONLY = false;
+
+function openDrawer(){
+  $("#drawer").classList.add("open");
+  $("#scrim").classList.add("open");
+  loadHistory();
+}
+function closeDrawer(){
+  $("#drawer").classList.remove("open");
+  $("#scrim").classList.remove("open");
+}
+
+async function loadHistory(){
+  const t = T(), body = $("#hist-body");
+  $("#hist-all").setAttribute("aria-pressed", !HIST_SAVED_ONLY);
+  $("#hist-saved").setAttribute("aria-pressed", HIST_SAVED_ONLY);
+  body.innerHTML = `<p class="hist-empty">…</p>`;
+  try{
+    const r = await fetch(`/api/history?limit=80${HIST_SAVED_ONLY ? "&saved=1" : ""}`
+      + (HIST_Q ? `&q=${encodeURIComponent(HIST_Q)}` : ""));
+    const items = (await r.json()).items || [];
+    if(!items.length){
+      body.innerHTML = `<p class="hist-empty">${esc(
+        HIST_Q ? t.noHistMatch : (HIST_SAVED_ONLY ? t.histEmptySaved : t.histEmpty))}</p>`;
+      return;
+    }
+    const kindLabel = k => ({study:t.kindStudy, topic:t.kindTopic, sermon:t.kindSermon}[k] || k);
+    body.innerHTML = items.map(it => `<div class="hist" data-k="${esc(it.cache_key)}">
+        <button class="hist-open">
+          <span class="hist-kind" data-k="${esc(it.kind)}">${esc(kindLabel(it.kind))}</span>
+          <span class="hist-title">${esc(it.title || "—")}</span>
+          ${it.detail ? `<span class="hist-detail">${esc(it.detail)}</span>` : ""}
+          <span class="hist-when">${esc(when(it.created_at))}${
+            it.lang !== "en" ? " · " + esc(it.lang.toUpperCase()) : ""}</span>
+        </button>
+        <button class="hist-star${+it.saved ? " on" : ""}" title="Save">${+it.saved ? "★" : "☆"}</button>
+        <button class="hist-del" title="Remove">✕</button>
+      </div>`).join("");
+
+    body.querySelectorAll(".hist").forEach(row => {
+      const key = row.dataset.k;
+      row.querySelector(".hist-open").addEventListener("click", () => openEntry(key));
+      row.querySelector(".hist-star").addEventListener("click", async e => {
+        e.stopPropagation();
+        const on = e.currentTarget.classList.toggle("on");
+        e.currentTarget.textContent = on ? "★" : "☆";
+        await fetch(`/api/history/${key}/save`, {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({saved:on})});
+      });
+      row.querySelector(".hist-del").addEventListener("click", async e => {
+        e.stopPropagation();
+        if(!confirm(T().confirmDelete)) return;
+        await fetch(`/api/history/${key}`, {method:"DELETE"});
+        loadHistory();
+      });
+    });
+  }catch{
+    body.innerHTML = `<p class="hist-empty">—</p>`;
+  }
+}
+
+function when(ts){
+  if(!ts) return "";
+  const d = new Date(String(ts).replace(" ", "T") + (String(ts).endsWith("Z") ? "" : "Z"));
+  if(isNaN(d)) return String(ts).slice(0, 16);
+  const mins = Math.round((Date.now() - d) / 60000);
+  if(mins < 1) return "now";
+  if(mins < 60) return mins + "m";
+  if(mins < 1440) return Math.round(mins / 60) + "h";
+  if(mins < 10080) return Math.round(mins / 1440) + "d";
+  return d.toLocaleDateString();
+}
+
+// Reopening restores the exact stored payload, so a study is never re-run and
+// never re-billed just to look at it again.
+async function openEntry(key){
+  closeDrawer();
+  $("#apparatus").innerHTML = `<p class="msg working">…</p>`;
+  try{
+    const r = await fetch(`/api/history/${key}`);
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.error);
+    indexEvidence(d.evidence);
+    if(d.kind === "sermon"){
+      setMode("sermon"); $("#s-ref").value = d.ref || "";
+      renderSermon(d);
+    } else if(d.topic !== undefined && d.study?.question !== undefined){
+      setMode("topic"); $("#topic").value = d.topic || "";
+      renderTopic(d);
+    } else {
+      setMode("passage");
+      $("#ref").value = d.ref || ""; $("#q").value = d.question || "";
+      renderPassage(d.ref, d.evidence.passage);
+      renderStudy(d);
+    }
+    decorate();
+  }catch(e){
+    $("#apparatus").innerHTML = `<p class="msg">${esc(e.message)}</p>`;
+  }
+}
+
+
+// ── notes ───────────────────────────────────────────────────────────
+// Anchored to the verse range, not to a study. The thought you had reading
+// Romans 5 belongs to Romans 5 — it should come back whether you return via a
+// passage study, a topic search, or sermon prep.
+let NOTE_REF = null, NOTE_EDIT = null;
+
+async function loadNotes(ref){
+  NOTE_REF = ref || NOTE_REF;
+  if(!NOTE_REF) return;
+  try{
+    const r = await fetch(`/api/notes?ref=${encodeURIComponent(NOTE_REF)}`);
+    renderNotes((await r.json()).notes || []);
+  }catch{ renderNotes([]); }
+}
+
+function renderNotes(notes){
+  const t = T(), box = $("#notes-box");
+  if(!box) return;
+  box.innerHTML = `
+    <div class="sec-head"><span class="sec-title">${esc(t.yourNotes)}</span>
+      <span class="sec-note">${esc(t.noteOn(NOTE_REF || ""))}</span></div>
+    <textarea id="note-input" class="noteinput" rows="3"
+      placeholder="${esc(t.notePlace)}"></textarea>
+    <div class="noterow">
+      <button class="notesave" id="note-save">${esc(NOTE_EDIT ? t.editNote : t.saveNote)}</button>
+      <span class="notehint" id="note-hint"></span>
+    </div>
+    ${notes.length ? notes.map(n => `<div class="note" data-id="${n.id}">
+        <p class="note-body">${esc(n.body)}</p>
+        <div class="note-meta">
+          <span>${esc(n.ref_label)} · ${esc(when(n.updated_at))}</span>
+          <button class="note-ed">${esc(t.editNote)}</button>
+          <button class="note-del">${esc(t.deleteNote)}</button>
+        </div></div>`).join("")
+      : `<p class="note-empty">${esc(t.noNotes)}</p>`}`;
+
+  if(NOTE_EDIT){
+    const n = notes.find(x => x.id === NOTE_EDIT);
+    if(n) $("#note-input").value = n.body;
+  }
+
+  $("#note-save").addEventListener("click", saveNote);
+  $("#note-input").addEventListener("keydown", e => {
+    // Ctrl/Cmd+Enter saves; plain Enter must stay a newline in a notes field.
+    if((e.ctrlKey || e.metaKey) && e.key === "Enter") saveNote();
+  });
+  box.querySelectorAll(".note").forEach(row => {
+    const id = +row.dataset.id;
+    row.querySelector(".note-ed").addEventListener("click", () => {
+      NOTE_EDIT = id; loadNotes();
+      setTimeout(() => $("#note-input")?.focus(), 60);
+    });
+    row.querySelector(".note-del").addEventListener("click", async () => {
+      if(!confirm(T().confirmDeleteNote)) return;
+      await fetch(`/api/notes/${id}`, {method:"DELETE"});
+      if(NOTE_EDIT === id) NOTE_EDIT = null;
+      loadNotes();
+    });
+  });
+}
+
+async function saveNote(){
+  const el = $("#note-input");
+  const body = (el?.value || "").trim();
+  if(!body || !NOTE_REF) return;
+  const payload = {ref: NOTE_REF, body, lang: LANG};
+  if(NOTE_EDIT) payload.id = NOTE_EDIT;
+  try{
+    const r = await fetch("/api/notes", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(payload)});
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.error);
+    NOTE_EDIT = null;
+    renderNotes(d.notes || []);
+    const hint = $("#note-hint");
+    if(hint){ hint.textContent = T().noteSaved;
+      setTimeout(() => hint.textContent = "", 1800); }
+  }catch(e){
+    const hint = $("#note-hint");
+    if(hint) hint.textContent = e.message;
+  }
+}
+
+function mountNotes(ref){
+  const box = $("#apparatus");
+  if(!box || !ref) return;
+  if(!document.getElementById("notes-box")){
+    const s = document.createElement("section");
+    s.id = "notes-box";
+    s.className = "notes";
+    box.appendChild(s);
+  }
+  loadNotes(ref);
+}
+
+
+// ── history search ──────────────────────────────────────────────────
+let HIST_Q = "", HIST_T = null;
+
+// ── report a mistake ────────────────────────────────────────────────
+// The tool's whole claim is that it tells you what it doesn't know. Without a
+// way to say "this is wrong", the only failures ever discovered are the ones
+// on passages the reader already knew — which is exactly the wrong sample.
+let LAST_VIEW = null;   // {kind, ref, cache_key}
+
+function flagBar(){
+  const t = T();
+  return `<div class="toolbar">
+    <button id="btn-listen">${esc(t.listenIt)}</button>
+    <button id="btn-print">${esc(t.printIt)}</button>
+    <button id="btn-flag" class="flagbtn">${esc(t.flagIt)}</button>
+  </div>`;
+}
+
+function wireToolbar(){
+  const t = T();
+  $("#btn-print")?.addEventListener("click", () => window.print());
+  $("#btn-listen")?.addEventListener("click", toggleSpeech);
+  $("#btn-flag")?.addEventListener("click", openFlag);
+}
+
+function openFlag(){
+  const t = T();
+  const sections = [...document.querySelectorAll("#apparatus > section .sec-title")]
+    .map(x => x.textContent).filter(Boolean);
+  const wrap = document.createElement("div");
+  wrap.className = "flagmodal";
+  wrap.innerHTML = `<div class="flagcard">
+      <h3>${esc(t.flagTitle)}</h3>
+      <label>${esc(t.flagSection)}</label>
+      <select id="flag-sec">${sections.map(s =>
+        `<option>${esc(s)}</option>`).join("")}<option>—</option></select>
+      <label>${esc(t.flagNote)}</label>
+      <textarea id="flag-note" rows="3"></textarea>
+      <div class="flagrow">
+        <button id="flag-cancel">${esc(t.flagCancel)}</button>
+        <button id="flag-send" class="notesave">${esc(t.flagSend)}</button>
+      </div></div>`;
+  document.body.appendChild(wrap);
+  const close = () => wrap.remove();
+  wrap.addEventListener("click", e => { if(e.target === wrap) close(); });
+  $("#flag-cancel").addEventListener("click", close);
+  $("#flag-send").addEventListener("click", async () => {
+    await fetch("/api/feedback", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        cache_key: LAST_VIEW?.cache_key, kind: LAST_VIEW?.kind,
+        ref: LAST_VIEW?.ref, section: $("#flag-sec").value,
+        note: $("#flag-note").value})});
+    close();
+    const hint = document.createElement("div");
+    hint.className = "toast"; hint.textContent = T().flagThanks;
+    document.body.appendChild(hint);
+    setTimeout(() => hint.remove(), 2400);
+  });
+}
+
+// ── listen ──────────────────────────────────────────────────────────
+// Browser speech synthesis: free, offline, no API cost. Built for the drive to
+// a job site — set it playing before you pull out, not while moving.
+let SPEAKING = false;
+
+function speechText(){
+  const parts = [];
+  const p = $("#passage");
+  if(p) parts.push(p.innerText);
+  const a = $("#apparatus");
+  if(a){
+    a.querySelectorAll(":scope > section").forEach(s => {
+      if(s.classList.contains("integrity") || s.classList.contains("notes")) return;
+      parts.push(s.innerText);
+    });
+  }
+  return parts.join(". ").replace(/\s+/g, " ").slice(0, 30000);
+}
+
+function toggleSpeech(){
+  const t = T();
+  if(!("speechSynthesis" in window)) return;
+  const btn = $("#btn-listen");
+  if(SPEAKING){
+    speechSynthesis.cancel(); SPEAKING = false;
+    if(btn) btn.textContent = t.listenIt;
+    return;
+  }
+  const u = new SpeechSynthesisUtterance(speechText());
+  u.lang = LANG === "es" ? "es-ES" : "en-US";
+  u.rate = 0.95;
+  u.onend = () => { SPEAKING = false; const b = $("#btn-listen"); if(b) b.textContent = T().listenIt; };
+  speechSynthesis.cancel();
+  speechSynthesis.speak(u);
+  SPEAKING = true;
+  if(btn) btn.textContent = t.stopIt;
+}
+
+// ── resume ──────────────────────────────────────────────────────────
+function rememberView(v){
+  LAST_VIEW = v;
+  try{ localStorage.setItem("apparatus-last", JSON.stringify(v)); }catch{}
+}
+
+function offerResume(){
+  let v = null;
+  try{ v = JSON.parse(localStorage.getItem("apparatus-last") || "null"); }catch{}
+  if(!v || !v.ref) return;
+  const intro = $("#intro");
+  if(!intro) return;
+  const b = document.createElement("button");
+  b.className = "resume";
+  b.textContent = T().resumeIt(v.ref);
+  b.addEventListener("click", () => {
+    if(v.kind === "sermon"){ setMode("sermon"); $("#s-ref").value = v.ref; runSermon(); }
+    else if(v.kind === "topic"){ setMode("topic"); $("#topic").value = v.ref; runTopic(); }
+    else { setMode("passage"); $("#ref").value = v.ref; $("#q").value = v.q || ""; run(); }
+  });
+  intro.prepend(b);
+}
+
+
+// ── access gate ─────────────────────────────────────────────────────
+// Only appears when ACCESS_CODE is configured. Lets you put the thing online
+// and hand the link to ten pastors without handing it to the internet.
+function showGate(){
+  if(document.getElementById("gate")) return;
+  const t = T();
+  const g = document.createElement("div");
+  g.id = "gate"; g.className = "flagmodal";
+  g.innerHTML = `<div class="flagcard">
+      <h3>${esc(t.codeTitle)}</h3>
+      <p style="font-size:14px;color:var(--text-dim);margin:0 0 14px">${esc(t.codeHint)}</p>
+      <input type="password" id="gate-code" style="width:100%;padding:11px 13px;
+        background:var(--raised2);border:1px solid var(--edge);border-radius:6px;
+        color:var(--text);font-size:16px">
+      <div class="flagrow"><button id="gate-go" class="notesave">${esc(t.codeGo)}</button></div>
+      <p id="gate-err" style="color:var(--rubric);font-size:13px;margin:8px 0 0"></p>
+    </div>`;
+  document.body.appendChild(g);
+  const submit = async () => {
+    const r = await fetch("/api/unlock", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({code: $("#gate-code").value})});
+    if(r.ok){ g.remove(); }
+    else { $("#gate-err").textContent = T().codeBad; }
+  };
+  $("#gate-go").addEventListener("click", submit);
+  $("#gate-code").addEventListener("keydown", e => { if(e.key === "Enter") submit(); });
+  $("#gate-code").focus();
+}
+
+// Turns a limit response into something a person understands, rather than
+// leaving them staring at a raw error and assuming the app is broken.
+function limitMessage(d){
+  const t = T();
+  const head = {hourly: t.limitHour, daily: t.limitDay, global: t.limitGlobal}[d.limit] || "";
+  return `<p class="msg">${head ? `<b>${esc(head)}</b><br>` : ""}${esc(d.error)}</p>`;
+}
+
+async function handleApiError(r, d){
+  if(r.status === 401 && d.gated){ showGate(); return true; }
+  if(r.status === 429){
+    $("#apparatus").innerHTML = limitMessage(d);
+    $("#passage").innerHTML = "";
+    return true;
+  }
+  return false;
+}
+
+async function run(){
+  const ref = $("#ref").value.trim();
+  const q   = $("#q").value.trim();
+  if(!ref) return;
+
+  $("#go").disabled = true;
+  $("#apparatus").innerHTML =
+    `<p class="msg working">${esc(T().working)}<small>${esc(T().workingSub)}</small></p>`;
+
+  try{
+    const pr = await fetch(`/api/passage?ref=${encodeURIComponent(ref)}&lang=${LANG}`);
+    const pd = await pr.json();
+    if(!pr.ok) throw new Error(pd.error);
+    INTERLINEAR = pd.interlinear || [];
+    renderPassage(pd.ref, pd.verses);
+
+    const sr = await fetch("/api/study", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ref, question:q, lang:LANG})
+    });
+    const sd = await sr.json();
+    if(!sr.ok){ if(await handleApiError(sr, sd)) return; throw new Error(sd.error); }
+    indexEvidence(sd.evidence);
+    renderStudy(sd);
+    decorate();
+    rememberView({kind:"study", ref:sd.ref, q:sd.question, cache_key:null});
+    mountNotes(sd.ref);
+  }catch(e){
+    $("#apparatus").innerHTML = `<p class="msg">${esc(e.message)}</p>`;
+  }finally{
+    $("#go").disabled = false;
+  }
+}
+
+$("#go").addEventListener("click", run);
+["ref","q"].forEach(id =>
+  $("#"+id).addEventListener("keydown", e => { if(e.key === "Enter") run(); }));
+function loadStatus(){
+  fetch("/api/status").then(r => r.json()).then(s => {
+    // loadBooks() may have already flagged a missing translation; that warning
+    // is more useful than a verse count, so don't overwrite it.
+    if(BOOKS_MISSING) return;
+    const n = s.traditions.length;
+    if(s.verses){ $("#status").style.color = ""; $("#status").style.borderColor = ""; }
+    $("#status").textContent = T().corpus(
+      (s.verses/1000).toFixed(0), s.chunks.toLocaleString(), n);
+    if(n && n < 3){
+      $("#status").style.color = "var(--rubric)";
+      $("#status").title = T().fewTraditions;
+    }
+    // The footer states the scope of the panel in plain words. A user reading
+    // "faithful Christians disagree" deserves to know which Christians the
+    // installation can actually hear from.
+    if(n && s.corpus_years && s.corpus_years[0]){
+      const note = document.createElement("div");
+      note.className = "scopenote";
+      note.textContent = T().scopeNote(n, s.corpus_years[0], s.corpus_years[1]);
+      const f = $("#footer-note");
+      if(f && !f.querySelector(".scopenote")) f.appendChild(note);
+    }
+  }).catch(() => $("#status").textContent = T().corpusFail);
+}
+
+$("#hist-btn").addEventListener("click", openDrawer);
+$("#hist-close").addEventListener("click", closeDrawer);
+$("#scrim").addEventListener("click", closeDrawer);
+$("#hist-q").addEventListener("input", e => {
+  HIST_Q = e.target.value.trim();
+  clearTimeout(HIST_T);
+  HIST_T = setTimeout(loadHistory, 220);   // debounce; one query per keystroke is wasteful
+});
+$("#hist-all").addEventListener("click", () => { HIST_SAVED_ONLY = false; loadHistory(); });
+$("#hist-saved").addEventListener("click", () => { HIST_SAVED_ONLY = true; loadHistory(); });
+document.addEventListener("keydown", e => { if(e.key === "Escape") closeDrawer(); });
+$("#theme-btn").addEventListener("click", () =>
+  setTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"));
+$("#mode-passage").addEventListener("click", () => setMode("passage"));
+$("#mode-topic").addEventListener("click", () => setMode("topic"));
+$("#mode-sermon").addEventListener("click", () => setMode("sermon"));
+$("#go-sermon").addEventListener("click", runSermon);
+$("#s-ref").addEventListener("keydown", e => { if(e.key === "Enter") runSermon(); });
+$("#picker-btn").addEventListener("click", e => {
+  e.stopPropagation();
+  $("#picker-panel").classList.contains("open") ? closePicker() : openPicker();
+});
+$("#picker-filter").addEventListener("input", renderPicker);
+$("#picker-panel").addEventListener("click", e => e.stopPropagation());
+document.addEventListener("click", closePicker);
+document.addEventListener("keydown", e => { if(e.key === "Escape") closePicker(); });
+$("#go-topic").addEventListener("click", runTopic);
+$("#topic").addEventListener("keydown", e => { if(e.key === "Enter") runTopic(); });
+
+$("#lang-en").addEventListener("click", () => setLanguage("en"));
+$("#lang-es").addEventListener("click", () => setLanguage("es"));
+applyLanguage();
+</script>
+</body>
+</html>

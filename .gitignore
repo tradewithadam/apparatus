@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.env
+.venv/
+venv/
+data/*.db
+data/*.db-wal
+data/*.db-shm
+corpora/*.jsonl
+.DS_Store
+.vscode/settings.json
+STEPBible-Data/
+.swordcache/
+*.gz
