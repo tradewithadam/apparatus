@@ -605,15 +605,40 @@ def create_app(config=None):
         store.delete_entry(get_db(), key)
         return jsonify({"ok": True})
 
+    @app.get("/healthz")
+    def healthz():
+        """
+        Liveness only. Deliberately does no database work.
+
+        The health check runs every few seconds forever, so it has to be the
+        cheapest thing in the app. Pointing it at /api/status — which counts
+        rows across five tables totalling well over a million — meant a check
+        that could exceed its own timeout on a large corpus, so Render would
+        kill a perfectly healthy instance, restart it, and repeat.
+        """
+        return jsonify({"ok": True}), 200
+
+    _status_cache = {"at": 0.0, "payload": None}
+
     @app.get("/api/status")
     def api_status():
-        """What's actually loaded. Useful when retrieval comes back thin."""
+        """
+        What's actually loaded. Useful when retrieval comes back thin.
+
+        Cached for a minute: the counts are expensive on a full corpus and they
+        only change when someone re-ingests, which is not something that
+        happens while the server is running.
+        """
+        now = time.time()
+        if _status_cache["payload"] and now - _status_cache["at"] < 60:
+            return jsonify(_status_cache["payload"])
+
         con = get_db()
         def one(sql):
             return store.one(con, sql) or 0
         sources = store.rows(
             con, "SELECT id, title, author, tradition, license FROM sources ORDER BY id")
-        return jsonify({
+        payload = {
             "verses": one("SELECT COUNT(*) FROM verses"),
             "translations": [r["translation"] for r in store.rows(
                 con, "SELECT DISTINCT translation FROM verses ORDER BY translation")],
@@ -629,6 +654,8 @@ def create_app(config=None):
             "corpus_years": _year_range(sources),
             "backend": "postgres" if store.IS_PG else "sqlite",
             "embedding_warning": _embed_warning(con),
-        })
+        }
+        _status_cache.update(at=now, payload=payload)
+        return jsonify(payload)
 
     return app

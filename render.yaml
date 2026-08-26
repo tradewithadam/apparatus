@@ -13,7 +13,7 @@ services:
     branch: main
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn 'app:create_app()' --bind 0.0.0.0:$PORT --workers 2 --timeout 180
-    healthCheckPath: /api/status
+    healthCheckPath: /healthz    # cheap by design; /api/status counts millions of rows
     disk:
       name: apparatus-data
       mountPath: /var/data
