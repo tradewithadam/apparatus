@@ -137,6 +137,22 @@ CREATE TABLE IF NOT EXISTS meta (
     value TEXT NOT NULL
 );
 
+-- What each model call actually cost, and how often the cache saved one.
+--
+-- Bible study concentrates hard on a few dozen passages, so the cache hit rate
+-- drives spend far more than user count does. Without measuring it you end up
+-- designing paywalls around a bill you never had.
+CREATE TABLE IF NOT EXISTS usage_log (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts            INTEGER NOT NULL,
+    kind          TEXT NOT NULL,          -- study | topic | sermon | candidates
+    cached        INTEGER NOT NULL DEFAULT 0,
+    model         TEXT,
+    input_tokens  INTEGER DEFAULT 0,
+    output_tokens INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_usage_ts ON usage_log(ts DESC);
+
 -- Rate-limit counters. In SQLite rather than memory because gunicorn runs
 -- several workers and per-process counters would each enforce the full limit
 -- independently — silently multiplying the real ceiling by the worker count.

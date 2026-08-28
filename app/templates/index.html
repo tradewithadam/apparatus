@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Apparatus — study the text, sources shown</title>
+<meta name="theme-color" content="#14161C">
+<meta name="description" content="Study the text. Every claim shows its source.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Apparatus">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<link rel="apple-touch-icon" href="/icon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -83,6 +91,24 @@ a{color:var(--rubric)}
 .langtoggle button[aria-pressed="true"]{background:var(--gold);color:var(--ground);font-weight:500}
 .themetoggle button{padding:5px 9px;font-size:13px}
 .themetoggle button:hover{color:var(--gold)}
+.lenspick select{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.04em;
+  background:var(--raised2);color:var(--muted);border:1px solid var(--edge);
+  border-radius:5px;padding:5px 8px;cursor:pointer;max-width:200px;
+}
+.lenspick select:hover{color:var(--gold);border-color:var(--gold)}
+.pos-lens{border-left:3px solid var(--gold)}
+.pos-folded{display:none}
+.pos-folded.open{display:block}
+.pos-more{
+  display:block;width:100%;font-family:"IBM Plex Mono",monospace;font-size:10px;
+  letter-spacing:.08em;text-transform:uppercase;background:var(--raised);
+  color:var(--verdigris);border:0;border-top:1px solid var(--verdigris);
+  padding:10px;cursor:pointer;text-align:left;
+}
+.pos-more:before{content:"▸ ";}
+.pos-more.open:before{content:"▾ ";}
+.pos-more:hover{color:var(--gold)}
 .status-pill{
   font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--muted);
   border:1px solid var(--edge);border-radius:5px;padding:4px 9px;background:var(--raised2);
@@ -734,6 +760,22 @@ select:focus{outline:none;border-color:var(--gold)}
 #prog-time{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--gold)}
 .prog-note{font-size:12.5px;color:var(--muted);font-style:italic}
 
+/* ── live rendering ───────────────────────────────────── */
+.livehint{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--gold);margin:0 0 14px;
+}
+.livehint:after{content:"";animation:dots 1.4s steps(4,end) infinite}
+/* Live sections live inside #live, so they miss `.apparatus > section` and
+   render unstyled — then snap into cards when the final payload replaces
+   them. Same card treatment, so the transition is invisible. */
+#live > section{
+  background:var(--raised);border:1px solid var(--edge);border-radius:11px;
+  padding:20px 24px;margin-bottom:16px;box-shadow:var(--shadow);
+  animation:rise .3s cubic-bezier(.2,.7,.3,1) both;
+}
+#live .live-body > *:first-child{padding-top:0}
+
 /* ── states ───────────────────────────────────────────── */
 .msg{
   font-family:"EB Garamond",Georgia,serif;font-size:18px;color:var(--text-dim);
@@ -825,6 +867,7 @@ footer div{max-width:1280px;margin:0 auto;line-height:1.7}
   <div class="masthead-inner">
     <h1 class="wordmark">Appa<em>r</em>atus</h1>
     <span class="tagline" id="t-tagline">Study the text. Every claim shows its source.</span>
+    <span class="lenspick"><select id="lens"></select></span>
     <span class="themetoggle"><button id="hist-btn" title="History">☰</button></span>
     <span class="themetoggle"><button id="theme-btn" title="Light / dark">◐</button></span>
     <span class="langtoggle" role="group" aria-label="Language">
@@ -984,6 +1027,9 @@ const STR = {
     cutNote: "cut in this order", minLabel: (n) => `${n} min`,
     totalMin: (n, t) => `${n} min of content · ${t} min slot`,
     copyMd: "Copy", downloadMd: "Download", copied: "Copied",
+    lensLabel: "Read from", lensAny: "No preference",
+    lensNote: "Your tradition's reading comes first. The others still appear.",
+    othersDiffer: (n) => `${n} other tradition${n===1?"":"s"} read this differently`,
     codeTitle: "This is a private preview",
     codeHint: "Enter the access code you were given.",
     codeGo: "Enter", codeBad: "That code isn't right.",
@@ -1102,6 +1148,9 @@ const STR = {
     cutNote: "corta en este orden", minLabel: (n) => `${n} min`,
     totalMin: (n, t) => `${n} min de contenido · ${t} min disponibles`,
     copyMd: "Copiar", downloadMd: "Descargar", copied: "Copiado",
+    lensLabel: "Leer desde", lensAny: "Sin preferencia",
+    lensNote: "La lectura de tu tradición aparece primero. Las demás siguen ahí.",
+    othersDiffer: (n) => `${n} tradición${n===1?"":"es"} más lo lee distinto`,
     codeTitle: "Vista previa privada",
     codeHint: "Escribe el código de acceso que te dieron.",
     codeGo: "Entrar", codeBad: "Ese código no es correcto.",
@@ -1217,7 +1266,10 @@ function setLanguage(l){
   $("#ref").value = ""; $("#q").value = "";
   $("#picker-label").textContent = STR[l].phRef.split(":")[0];
   BOOKS_MISSING = null;
-  applyLanguage();
+  if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+}
+applyLanguage();
 }
 
 let EV = {};   // siglum -> evidence item, for hover text
@@ -1694,12 +1746,13 @@ async function runTopic(){
   $("#go-topic").disabled = true;
   $("#passage").innerHTML = "";
   try{
-    const d = await runStreaming("/api/topic/stream", {topic, lang:LANG});
+    const d = await runStreaming("/api/topic/stream", {topic, lang:LANG, lens:LENS});
     if(!d) return;
     indexEvidence(d.evidence);
     renderTopic(d);
     decorate();
     wireTermHighlight();
+    applyLensToDisputes();
     rememberView({kind:"topic", ref:d.topic, q:null, cache_key:null});
   }catch(e){
     $("#apparatus").innerHTML = `<p class="msg">${esc(e.message)}</p>`;
@@ -1966,7 +2019,7 @@ async function runSermon(){
   $("#passage").innerHTML = "";
   try{
     const d = await runStreaming("/api/sermon/stream",
-      {ref, lang:LANG, minutes:$("#s-min").value,
+      {ref, lang:LANG, lens:LENS, minutes:$("#s-min").value,
        audience:$("#s-aud").value.trim()});
     if(!d) return;
     indexEvidence(d.evidence);
@@ -2084,6 +2137,7 @@ async function openEntry(key){
     }
     decorate();
     wireTermHighlight();
+    applyLensToDisputes();
   }catch(e){
     $("#apparatus").innerHTML = `<p class="msg">${esc(e.message)}</p>`;
   }
@@ -2409,6 +2463,7 @@ function progressStage(ev){
 // is unavailable (some proxies buffer it into uselessness), so the feature can
 // never be the reason a study fails.
 async function runStreaming(url, body, onDone){
+  LIVE = null;
   progressStart();
   let res;
   try{
@@ -2438,10 +2493,13 @@ async function runStreaming(url, body, onDone){
       let ev; try{ ev = JSON.parse(line.slice(6)); }catch{ continue; }
       if(ev.stage === "done") payload = ev.payload;
       else if(ev.stage === "error") err = ev.error;
+      else if(ev.stage === "section"){ liveStart2(); liveSection(ev.key, ev.value); }
+      else if(ev.stage === "item"){ liveStart2(); liveItem(ev.key, ev.value); }
       else progressStage(ev);
     }
   }
   progressStop();
+  LIVE = null;
   if(err) throw new Error(err);
   return payload;
 }
@@ -2499,6 +2557,165 @@ function wireTermHighlight(){
   });
 }
 
+
+// ── the reader's own tradition ──────────────────────────────────────
+// A lens, not a filter. It reorders and expands — the other positions are
+// still rendered in full, one tap away. Filtering them out would quietly turn
+// this into a tool that tells people their view is the only view, which is
+// the thing it was built to prevent.
+let LENS = localStorage.getItem("apparatus-lens") || "";
+
+const TRADITION_LABELS = {
+  "puritan":"Puritan", "reformed":"Reformed / Calvinist",
+  "presbyterian":"Presbyterian", "methodist":"Methodist / Wesleyan",
+  "lutheran":"Lutheran", "dispensational":"Dispensational",
+  "catholic-patristic":"Catholic / Church Fathers",
+  "restorationist":"Restoration Movement",
+  "wesleyan-holiness":"Wesleyan-Holiness / Pentecostal roots",
+  "brethren":"Plymouth Brethren", "baptist":"Baptist",
+};
+const tradLabel = t => TRADITION_LABELS[t] || (t || "").replace(/(^|[-\s])\w/g,
+  c => c.toUpperCase()).replace(/-/g, " ");
+
+function fillLens(traditions){
+  const sel = $("#lens");
+  if(!sel) return;
+  sel.innerHTML = `<option value="">${esc(T().lensAny)}</option>` +
+    (traditions || []).map(t =>
+      `<option value="${esc(t)}"${t === LENS ? " selected" : ""}>${esc(tradLabel(t))}</option>`).join("");
+  sel.title = T().lensNote;
+}
+
+function setLens(v){
+  LENS = v || "";
+  localStorage.setItem("apparatus-lens", LENS);
+}
+
+// Collapse the positions the reader didn't ask to lead with. Present, counted,
+// one tap away — never removed.
+function applyLensToDisputes(){
+  if(!LENS) return;
+  const label = tradLabel(LENS).toLowerCase();
+  document.querySelectorAll(".dispute").forEach(d => {
+    const cols = [...d.querySelectorAll(".pos")];
+    if(cols.length < 2) return;
+    const mine = cols.find(c => {
+      const held = (c.querySelector(".pos-held")?.textContent || "").toLowerCase();
+      return held.includes(LENS.split("-")[0]) || held.includes(label.split(" ")[0]);
+    });
+    if(!mine) return;
+    const others = cols.filter(c => c !== mine);
+    mine.classList.add("pos-lens");
+    const grid = d.querySelector(".positions");
+    grid.prepend(mine);
+    others.forEach(o => o.classList.add("pos-folded"));
+    const toggle = document.createElement("button");
+    toggle.className = "pos-more";
+    toggle.textContent = T().othersDiffer(others.length);
+    toggle.addEventListener("click", () => {
+      const open = others[0].classList.toggle("open");
+      others.slice(1).forEach(o => o.classList.toggle("open", open));
+      toggle.classList.toggle("open", open);
+    });
+    grid.after(toggle);
+  });
+}
+
+
+// ── progressive rendering ───────────────────────────────────────────
+// Sections appear as the model finishes them. Every item shown has already
+// passed the citation check server-side — nothing is rendered and then
+// retracted, because a claim that flashes on screen and disappears is worse
+// than one that arrives a second later.
+let LIVE = null;
+
+// Swap the progress rows out for the document itself the first time real
+// content arrives — the reader should be reading, not watching a checklist.
+function liveStart2(){
+  if(LIVE) return;
+  progressStop();
+  const el = $("#prog-time");
+  const elapsed = el ? el.textContent : "";
+  $("#apparatus").innerHTML =
+    `<p class="livehint">${esc(T().stWriting)}${elapsed ? " · " + esc(elapsed) : ""}</p>`;
+  liveStart();
+}
+
+function liveStart(){
+  LIVE = {sections: {}};
+  const box = $("#apparatus");
+  const prog = document.createElement("div");
+  prog.id = "live";
+  box.appendChild(prog);
+}
+
+function liveSection(key, value){
+  if(!LIVE) return;
+  const t = T(), box = $("#live");
+  if(!box) return;
+  if(key === "summary"){
+    box.insertAdjacentHTML("beforeend",
+      `<section id="live-summary"><div class="sec-head">
+         <span class="sec-title">${esc(t.secSummary)}</span></div>
+         <p class="summary-text">${esc(value)}</p></section>`);
+  } else if(key === "context"){
+    box.insertAdjacentHTML("beforeend",
+      `<section id="live-context"><div class="sec-head">
+        <span class="sec-title">${esc(t.secContext)}</span></div><div class="ctx">
+        ${value.literary ? `<div><b>${esc(t.ctxBook)}</b>${esc(value.literary)}</div>` : ""}
+        ${value.historical ? `<div><b>${esc(t.ctxOccasion)}</b>${esc(value.historical)}</div>` : ""}
+      </div></section>`);
+  }
+}
+
+const LIVE_TITLES = {
+  settled: () => T().secSettled, key_terms: () => T().secTerms,
+  disputed: () => T().secDisputed, connections: () => T().secConn,
+  common_misreadings: () => T().secMisread,
+};
+
+function liveItem(key, item){
+  if(!LIVE) return;
+  const t = T(), box = $("#live");
+  if(!box) return;
+  let sec = document.getElementById("live-" + key);
+  if(!sec){
+    box.insertAdjacentHTML("beforeend",
+      `<section id="live-${esc(key)}"><div class="sec-head">
+        <span class="sec-title">${esc((LIVE_TITLES[key] || (() => key))())}</span></div>
+        <div class="live-body"></div></section>`);
+    sec = document.getElementById("live-" + key);
+  }
+  const body = sec.querySelector(".live-body");
+  let html = "";
+  if(key === "settled"){
+    html = `<div class="claim">
+      <span class="cert" data-c="${esc(item.certainty)}"><i></i>
+        <small>${T().cert[item.certainty]||""}</small></span>
+      <span class="claim-body">${esc(item.claim)}${sigs(item.cites)}</span></div>`;
+  } else if(key === "key_terms"){
+    html = `<div class="term" data-s="${esc(item.strongs||"")}"><div class="term-top">
+      ${item.original ? `<span class="term-orig">${esc(item.original)}</span>` : ""}
+      ${item.translit ? `<span class="term-tr">${esc(item.translit)}</span>` : ""}
+      <span class="term-sur">“${esc(item.surface)}”</span>${sig(item.strongs)}</div>
+      <p class="term-why">${esc(item.why_it_matters)}</p></div>`;
+  } else if(key === "disputed"){
+    html = `<div class="dispute"><p class="dispute-q">${esc(item.question)}</p>
+      ${item.why_it_is_hard ? `<p class="dispute-why">${esc(item.why_it_is_hard)}</p>` : ""}
+      <div class="positions">${item.positions.map(p => `<div class="pos">
+        <div class="pos-held">${esc(p.held_by)}</div>
+        <p class="pos-view">${esc(p.view)}</p>
+        <p class="pos-reason">${esc(p.reasoning)}${sigs(p.cites)}</p></div>`).join("")}</div></div>`;
+  } else if(key === "connections"){
+    html = `<div class="conn"><span class="conn-ref">${esc(item.ref)}</span>
+      <span>${esc(item.relation)}${sigs(item.cites)}</span></div>`;
+  } else if(key === "common_misreadings"){
+    html = `<div class="misread"><p class="misread-x">${esc(item.misreading)}</p>
+      <p class="misread-fix">${esc(item.correction)}${sigs(item.cites)}</p></div>`;
+  }
+  body.insertAdjacentHTML("beforeend", html);
+}
+
 async function run(){
   const ref = $("#ref").value.trim();
   const q   = $("#q").value.trim();
@@ -2514,12 +2731,13 @@ async function run(){
     renderPassage(pd.ref, pd.verses);
 
     const sd = await runStreaming("/api/study/stream",
-      {ref, question:q, lang:LANG});
+      {ref, question:q, lang:LANG, lens:LENS});
     if(!sd) return;
     indexEvidence(sd.evidence);
     renderStudy(sd);
     decorate();
     wireTermHighlight();
+    applyLensToDisputes();
     rememberView({kind:"study", ref:sd.ref, q:sd.question, cache_key:null});
     mountNotes(sd.ref);
   }catch(e){
@@ -2540,6 +2758,7 @@ function loadStatus(){
     if(BOOKS_MISSING) return;
     const n = s.traditions.length;
     if(s.verses){ $("#status").style.color = ""; $("#status").style.borderColor = ""; }
+    fillLens(s.traditions || []);
     $("#status").textContent = T().corpus(
       (s.verses/1000).toFixed(0), s.chunks.toLocaleString(), n);
     if(n && n < 3){
@@ -2559,6 +2778,7 @@ function loadStatus(){
   }).catch(() => $("#status").textContent = T().corpusFail);
 }
 
+$("#lens").addEventListener("change", e => setLens(e.target.value));
 $("#hist-btn").addEventListener("click", openDrawer);
 $("#hist-close").addEventListener("click", closeDrawer);
 $("#scrim").addEventListener("click", closeDrawer);

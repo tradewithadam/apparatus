@@ -178,6 +178,18 @@ def create_app(config=None):
         lang = (value or "en").lower()[:2]
         return lang if lang in ("en", "es") else "en"
 
+    def _lens(value):
+        """Only accept a tradition the loaded corpus actually contains."""
+        v = (value or "").strip().lower()[:40]
+        if not v:
+            return None
+        try:
+            known = {r["tradition"] for r in store.rows(
+                get_db(), "SELECT DISTINCT tradition FROM sources") if r["tradition"]}
+        except Exception:
+            known = set()
+        return v if v in known else None
+
     def _translations(lang):
         return app.config["TRANSLATIONS_ES"] if lang == "es" else app.config["TRANSLATIONS"]
 
@@ -640,6 +652,20 @@ def create_app(config=None):
             },
         )
 
+    def log_usage(con, kind, cached=False):
+        """Record one unit of work. Cached studies are logged with zero tokens."""
+        u = llm.LAST_USAGE if not cached else {"input_tokens": 0, "output_tokens": 0,
+                                               "model": app.config["MODEL"]}
+        try:
+            store.execute(con, """
+                INSERT INTO usage_log (ts, kind, cached, model, input_tokens, output_tokens)
+                VALUES (?,?,?,?,?,?)
+            """, (int(time.time()), kind, 1 if cached else 0,
+                  u.get("model") or app.config["MODEL"],
+                  u.get("input_tokens", 0), u.get("output_tokens", 0)))
+        except Exception:
+            pass          # accounting must never break a study
+
     def evidence_summary(ev, lang):
         c, w, x = len(ev["commentary"]), len(ev["words"]), len(ev["cross_refs"])
         trads = sorted({e.get("tradition") for e in ev["commentary"] if e.get("tradition")})
@@ -660,6 +686,7 @@ def create_app(config=None):
         lang = _lang(body.get("lang"))
         ref = body.get("ref", "")
         question = (body.get("question") or "").strip() or None
+        lens = _lens(body.get("lens"))
 
         blocked = guard("study")
         if blocked:
@@ -688,7 +715,7 @@ def create_app(config=None):
 
                 label = refs.range_label(start, end, lang)
                 key = hashlib.sha256(
-                    f"{start}:{end}:{question}:{lang}:{model}".encode()).hexdigest()
+                    f"{start}:{end}:{question}:{lang}:{lens}:{model}".encode()).hexdigest()
 
                 if app.config["CACHE_STUDIES"]:
                     hit = store.rows(con, "SELECT payload FROM studies WHERE cache_key = ?", (key,))
@@ -700,17 +727,56 @@ def create_app(config=None):
 
                 yield sse({"stage": "reading", "ref": label, "verses": n})
 
-                evidence = retrieval.build_evidence(con, start, end, question, translations)
+                evidence = retrieval.build_evidence(con, start, end, question,
+                                                        translations, lens=lens)
                 ev = evidence.to_dict()
                 summ = evidence_summary(ev, lang)
                 yield sse({"stage": "found", **summ})
 
                 yield sse({"stage": "writing"})
+
+                # Emit each section the moment it is finished AND checked.
+                # Order matters: nothing is sent until check_one has cleared
+                # it, so an uncited claim is never briefly visible.
+                ctx = validate.prepare(ev, lang)
+                from .partial import settled_items, scalar_ready
+                sent = {k: 0 for k in ("settled", "key_terms", "disputed",
+                                       "connections", "common_misreadings")}
+                sent_scalar = set()
+                raw = None
                 try:
-                    raw = llm.generate_study(ev, label, question, model=model, lang=lang)
+                    for kind, obj in llm.stream_study(ev, label, question,
+                                                      model=model, lang=lang,
+                                                      lens=lens):
+                        if kind == "final":
+                            raw = obj
+                            break
+                        if scalar_ready(obj, "summary", ("context", "key_terms", "settled")) \
+                                and "summary" not in sent_scalar:
+                            sent_scalar.add("summary")
+                            yield sse({"stage": "section", "key": "summary",
+                                       "value": obj["summary"]})
+                        if scalar_ready(obj, "context", ("key_terms", "settled", "disputed")) \
+                                and "context" not in sent_scalar:
+                            sent_scalar.add("context")
+                            yield sse({"stage": "section", "key": "context",
+                                       "value": obj["context"]})
+                        for key in sent:
+                            ready = settled_items(obj, key)
+                            while len(ready) > sent[key]:
+                                item = ready[sent[key]]
+                                sent[key] += 1
+                                clean = validate.check_one(key, item, ctx)
+                                if clean:
+                                    yield sse({"stage": "item", "key": key,
+                                               "value": clean})
                 except (llm.ModelError, RuntimeError) as e:
                     yield sse({"stage": "error", "error": str(e)}); return
 
+                if raw is None:
+                    yield sse({"stage": "error", "error": "Model returned nothing"}); return
+
+                log_usage(con, "study")
                 yield sse({"stage": "checking"})
                 study, report = validate.validate(raw, ev, lang=lang)
 
@@ -736,6 +802,7 @@ def create_app(config=None):
         body = request.get_json(silent=True) or {}
         lang = _lang(body.get("lang"))
         topic = (body.get("topic") or "").strip()
+        lens = _lens(body.get("lens"))
         if not topic:
             return jsonify({"error": "Enter a topic."}), 400
         blocked = guard("topic")
@@ -749,7 +816,8 @@ def create_app(config=None):
             con = streamed_db()
             try:
                 t0 = time.time()
-                key = hashlib.sha256(f"topic:{topic.lower()}:{lang}:{model}".encode()).hexdigest()
+                key = hashlib.sha256(
+                    f"topic:{topic.lower()}:{lang}:{lens}:{model}".encode()).hexdigest()
                 if app.config["CACHE_STUDIES"]:
                     hit = store.rows(con, "SELECT payload FROM topics WHERE cache_key = ?", (key,))
                     if hit:
@@ -777,10 +845,11 @@ def create_app(config=None):
 
                 yield sse({"stage": "writing"})
                 try:
-                    raw = llm.generate_topic(ev, topic, model=model, lang=lang)
+                    raw = llm.generate_topic(ev, topic, model=model, lang=lang, lens=lens)
                 except (llm.ModelError, RuntimeError) as e:
                     yield sse({"stage": "error", "error": str(e)}); return
 
+                log_usage(con, "topic")
                 yield sse({"stage": "checking"})
                 study, report = validate.validate_topic(raw, ev, lang=lang)
                 payload = {
@@ -814,6 +883,7 @@ def create_app(config=None):
             "angle": (body.get("angle") or "").strip()[:200],
         }
         ref = body.get("ref", "")
+        lens = _lens(body.get("lens"))
 
         def steps():
             con = streamed_db()
@@ -834,7 +904,7 @@ def create_app(config=None):
 
                 label = refs.range_label(start, end, lang)
                 key = hashlib.sha256(
-                    f"sermon:{start}:{end}:{json.dumps(opts, sort_keys=True)}:{lang}:{model}".encode()
+                    f"sermon:{start}:{end}:{json.dumps(opts, sort_keys=True)}:{lang}:{lens}:{model}".encode()
                 ).hexdigest()
                 if app.config["CACHE_STUDIES"]:
                     hit = store.rows(con, "SELECT payload FROM studies WHERE cache_key = ?", (key,))
@@ -845,16 +915,20 @@ def create_app(config=None):
                         yield sse({"stage": "done", "payload": out}); return
 
                 yield sse({"stage": "reading", "ref": label, "verses": n})
-                evidence = retrieval.build_evidence(con, start, end, opts["angle"] or None, translations)
+                evidence = retrieval.build_evidence(con, start, end,
+                                                        opts["angle"] or None,
+                                                        translations, lens=lens)
                 ev = evidence.to_dict()
                 yield sse({"stage": "found", **evidence_summary(ev, lang)})
 
                 yield sse({"stage": "writing"})
                 try:
-                    raw = llm.generate_sermon(ev, label, opts, model=model, lang=lang)
+                    raw = llm.generate_sermon(ev, label, opts, model=model,
+                                                  lang=lang, lens=lens)
                 except (llm.ModelError, RuntimeError) as e:
                     yield sse({"stage": "error", "error": str(e)}); return
 
+                log_usage(con, "sermon")
                 yield sse({"stage": "checking"})
                 raw["_target_minutes"] = int(opts["minutes"] or 25)
                 study, report = validate.validate_sermon(raw, ev, lang=lang)
@@ -874,6 +948,115 @@ def create_app(config=None):
                 store.release(con)
 
         return stream(steps())
+
+    @app.get("/api/costs")
+    def api_costs():
+        """
+        What this is actually costing, and how much the cache is saving.
+
+        Rates are estimates from environment variables — the real bill is in
+        the Anthropic console. The number worth watching is the cache hit rate:
+        Bible study clusters on a few dozen passages, so a healthy cache makes
+        cost grow far slower than users do.
+        """
+        con = get_db()
+        in_rate = float(os.environ.get("RATE_INPUT_PER_MTOK", "3.00"))
+        out_rate = float(os.environ.get("RATE_OUTPUT_PER_MTOK", "15.00"))
+        now = int(time.time())
+
+        def window(seconds):
+            rows = store.rows(con, """
+                SELECT kind, cached, COUNT(*) AS n,
+                       SUM(input_tokens) AS inp, SUM(output_tokens) AS outp
+                FROM usage_log WHERE ts > ? GROUP BY kind, cached
+            """, (now - seconds,))
+            served = billed = inp = outp = 0
+            by_kind = {}
+            for r in rows:
+                served += r["n"]
+                by_kind[r["kind"]] = by_kind.get(r["kind"], 0) + r["n"]
+                if not r["cached"]:
+                    billed += r["n"]
+                    inp += r["inp"] or 0
+                    outp += r["outp"] or 0
+            cost = inp / 1e6 * in_rate + outp / 1e6 * out_rate
+            return {
+                "served": served, "billed": billed,
+                "cache_hits": served - billed,
+                "cache_hit_rate": round((served - billed) / served, 3) if served else None,
+                "input_tokens": inp, "output_tokens": outp,
+                "estimated_cost": round(cost, 4),
+                "cost_per_study_served": round(cost / served, 4) if served else None,
+                "by_kind": by_kind,
+            }
+
+        return jsonify({
+            "today": window(86400),
+            "week": window(86400 * 7),
+            "month": window(86400 * 30),
+            "rates": {"input_per_mtok": in_rate, "output_per_mtok": out_rate,
+                      "note": "estimates; the Anthropic console is authoritative"},
+            "unique_studies_cached": store.one(con, "SELECT COUNT(*) FROM studies") or 0,
+            "unique_topics_cached": store.one(con, "SELECT COUNT(*) FROM topics") or 0,
+        })
+
+    @app.get("/manifest.webmanifest")
+    def manifest():
+        """
+        Makes the site installable to a phone home screen.
+
+        This is the whole reason not to build a native app yet: Add to Home
+        Screen gives an icon, a splash screen and a full-screen window with no
+        browser chrome, for free and with no review process. An App Store build
+        costs $99/year, a Mac, and 15-30% of every subscription — to solve a
+        problem this file solves.
+        """
+        return jsonify({
+            "name": "Apparatus — Bible study",
+            "short_name": "Apparatus",
+            "description": "Study the text. Every claim shows its source.",
+            "start_url": "/",
+            "display": "standalone",
+            "background_color": "#14161C",
+            "theme_color": "#14161C",
+            "orientation": "any",
+            "categories": ["education", "books", "lifestyle"],
+            "icons": [
+                {"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml",
+                 "purpose": "any"},
+                {"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml",
+                 "purpose": "maskable"},
+            ],
+        })
+
+    @app.get("/icon.svg")
+    def icon():
+        """
+        A rubricated capital on ink — the initial letter of an illuminated
+        manuscript page, which is where the whole palette comes from.
+        Drawn rather than a raster so one file covers every size.
+        """
+        svg = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#14161C"/>
+  <rect x="96" y="150" width="320" height="6" rx="3" fill="#D4A64A" opacity=".55"/>
+  <rect x="96" y="362" width="320" height="6" rx="3" fill="#D4A64A" opacity=".55"/>
+  <text x="256" y="322" font-family="Georgia,'Times New Roman',serif"
+        font-size="248" font-weight="600" fill="#D96A56"
+        text-anchor="middle">A</text>
+</svg>"""
+        return app.response_class(svg, mimetype="image/svg+xml",
+                                  headers={"Cache-Control": "public, max-age=86400"})
+
+    @app.get("/sw.js")
+    def service_worker():
+        """
+        Minimal worker. Installability requires one; caching study responses
+        would be actively wrong, since a stale study is worse than a slow one.
+        So it registers, claims the page, and gets out of the way.
+        """
+        js = ("self.addEventListener('install', () => self.skipWaiting());\n"
+              "self.addEventListener('activate', e => e.waitUntil(clients.claim()));\n")
+        return app.response_class(js, mimetype="application/javascript")
 
     @app.get("/healthz")
     def healthz():

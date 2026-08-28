@@ -68,6 +68,10 @@ MODULES = {
     "Darby":   ("darby",    "Darby's Synopsis", "John Nelson Darby", "1857", "brethren"),
     "Calvin":  ("calvin",   "Calvin's Commentaries", "John Calvin", "1555", "reformed"),
     "Luther":  ("luther",   "Luther's Commentaries", "Martin Luther", "1535", "lutheran"),
+    # Wesleyan-Holiness. The closest available ancestor of Pentecostal reading:
+    # the movement began around 1906, so essentially nothing Pentecostal is old
+    # enough to be public domain. Holiness is where its theology came from.
+    "Godbey":  ("godbey",   "Godbey's Commentary on the NT", "W. B. Godbey", "1896", "wesleyan-holiness"),
 }
 # CrossWire's file for Calvin is named differently from its module id.
 FILE_OVERRIDE = {"Calvin": "CalvinCommentaries"}
@@ -391,7 +395,7 @@ def main():
     # dispensational, Catena brings the church fathers, PNT brings the
     # Restoration movement.
     default = ["MHC", "JFB", "Clarke", "Barnes", "Wesley", "Catena",
-               "Calvin", "Luther", "Scofield", "PNT"]
+               "Calvin", "Luther", "Scofield", "PNT", "Godbey"]
     mods = list(MODULES) if args.all else (args.modules or default)
 
     total = 0

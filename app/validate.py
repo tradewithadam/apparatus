@@ -492,3 +492,67 @@ def _prompts_only(items, path: str, rep: Report) -> list:
                 f"{path}[{i}]: stated rather than asked — check it is a prompt")
         out.append(s)
     return out
+
+
+def prepare(evidence: dict, lang: str = "en"):
+    """Allow-list and support index, computed once for a streaming session."""
+    allowed = set()
+    for group in ("passage", "words", "cross_refs", "commentary"):
+        for item in evidence.get(group, []):
+            allowed.add(item["siglum"])
+    source_langs = {c.get("source_lang", "en") for c in evidence.get("commentary", [])}
+    return {
+        "allowed": allowed,
+        "support": _support_index(evidence),
+        "check_drift": not source_langs or source_langs == {lang},
+    }
+
+
+_STREAM_FIELDS = {
+    "settled": ["claim"],
+    "key_terms": ["why_it_matters", "gloss"],
+    "connections": ["relation"],
+    "common_misreadings": ["correction"],
+    "what_scripture_addresses": ["claim"],
+    "key_passages": ["what_it_says"],
+}
+
+
+def check_one(section: str, item: dict, ctx: dict) -> dict | None:
+    """
+    Validate a single item mid-stream.
+
+    The whole point of this app is that an uncited claim never reaches the
+    reader. Streaming would break that if items were rendered first and
+    filtered afterwards — the claim would flash on screen and vanish, which is
+    worse than never showing it. So each item is checked as it completes, and
+    only survivors are sent.
+    """
+    if not isinstance(item, dict):
+        return None
+    rep = Report()
+
+    if section == "settled" and item.get("certainty") not in (
+            "explicit", "strongly_implied", "inferred"):
+        item["certainty"] = "inferred"
+
+    if section == "key_terms":
+        sid = (item.get("strongs") or "").strip()
+        if sid and sid not in ctx["allowed"]:
+            return None
+
+    if section == "disputed":
+        positions = [p for p in (item.get("positions") or []) if isinstance(p, dict)]
+        if len(positions) < 2:
+            return None
+        item["positions"] = positions
+        return item
+
+    fields = _STREAM_FIELDS.get(section)
+    if not fields:
+        return item
+
+    ok = _check(item, fields, ctx["allowed"], ctx["support"], section, rep,
+                require_cites=(section != "common_misreadings"),
+                check_drift=ctx["check_drift"])
+    return item if ok else None

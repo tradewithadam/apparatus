@@ -170,6 +170,14 @@ Do not manufacture controversy either. That God created, that Christ rose, that 
 
 The commentators in the evidence are the ones this installation happens to have loaded. They are not the whole church. Public-domain commentary is overwhelmingly Western, Protestant, and pre-1930, so Orthodox readings, modern Catholic scholarship, and anything shaped by the last century of archaeology and manuscript discovery are usually absent.
 
+Traditions with essentially no public-domain commentary, and therefore almost
+certainly absent here: Pentecostal and charismatic (the movement began around
+1906, so nothing is old enough), Eastern Orthodox, modern Catholic, Anabaptist
+and Mennonite, Adventist, and the Black church traditions. Where one of those
+holds a distinct reading of the passage in front of you, name it in `go_deeper`
+as something to look into — do not present it as though a supplied commentator
+said it, and do not let its absence pass as agreement.
+
 This matters for how you phrase things. Write "the commentators here divide over X" rather than "Christians divide over X" when the evidence only covers part of the church. Where you know a major tradition holds a position that no supplied commentator represents — the Orthodox and Catholic understanding of the Eucharist, say, or of church authority — name it in `go_deeper` as something to look into elsewhere, rather than presenting a Protestant argument as the full range. That is not editorialising; it is refusing to let a gap in the library look like a consensus in the church.
 
 ## Tone
@@ -211,8 +219,33 @@ Escribe en un español neutro, latinoamericano, sin regionalismos fuertes.""",
 }
 
 
-def system_for(lang: str = "en") -> str:
-    return SYSTEM + LANGUAGE_RULES.get(lang, "")
+LENS_RULE = """
+
+## The reader's own tradition
+
+This reader studies from within the {lens} tradition. That is a lens, not a
+filter, and the difference is the whole point:
+
+- In `disputed`, put the {lens} position FIRST and give it your fullest, most
+  sympathetic statement. It is where they live; they should recognise
+  themselves in it.
+- Then give the other positions with the same seriousness you always would.
+  Do not shorten them, weaken them, or drop them. A reader who only ever sees
+  their own tradition reflected back has been told, silently, that no one
+  disagrees — which is the exact failure this tool exists to prevent.
+- Never resolve the question in their favour. Presenting their view first is a
+  courtesy of ordering, not a verdict.
+
+If the supplied commentators include none from the {lens} tradition, say so
+plainly in `go_deeper` rather than assigning that view to someone who does not
+hold it."""
+
+
+def system_for(lang: str = "en", lens: str | None = None) -> str:
+    base = SYSTEM
+    if lens:
+        base += LENS_RULE.format(lens=lens)
+    return base + LANGUAGE_RULES.get(lang, "")
 
 
 def build_user_turn(evidence: dict, ref_label: str, question: str | None,
@@ -369,8 +402,11 @@ Plain language for an intelligent adult without seminary training. Warm, unhurri
 Return valid JSON matching the schema. Nothing else."""
 
 
-def topic_system_for(lang: str = "en") -> str:
-    return TOPIC_SYSTEM + LANGUAGE_RULES.get(lang, "")
+def topic_system_for(lang: str = "en", lens: str | None = None) -> str:
+    base = TOPIC_SYSTEM
+    if lens:
+        base += LENS_RULE.format(lens=lens).replace("`disputed`", "`positions`")
+    return base + LANGUAGE_RULES.get(lang, "")
 
 
 def build_topic_turn(evidence: dict, topic: str, lang: str = "en") -> str:
@@ -573,8 +609,11 @@ The preacher is an intelligent adult who may not read Greek. Plain language, tec
 Return valid JSON matching the schema. Nothing else."""
 
 
-def sermon_system_for(lang: str = "en") -> str:
-    return SERMON_SYSTEM + LANGUAGE_RULES.get(lang, "")
+def sermon_system_for(lang: str = "en", lens: str | None = None) -> str:
+    base = SERMON_SYSTEM
+    if lens:
+        base += LENS_RULE.format(lens=lens).replace("`disputed`", "`decisions_to_make`")
+    return base + LANGUAGE_RULES.get(lang, "")
 
 
 def build_sermon_turn(evidence: dict, ref_label: str, opts: dict, lang: str = "en") -> str:

@@ -188,7 +188,8 @@ def cross_references(con, start: int, end: int, limit: int = 12,
 
 
 def commentary(con, start: int, end: int, question: str | None,
-               per_source: int = 2, semantic_k: int = 6) -> list[dict]:
+               per_source: int = 2, semantic_k: int = 6,
+               lens: str | None = None) -> list[dict]:
     """
     Direct hits first (commentary written on this passage), then semantic
     neighbours. Capped per source so one verbose commentator can't drown out
@@ -203,9 +204,20 @@ def commentary(con, start: int, end: int, question: str | None,
         ORDER BY c.source_id, (c.end_vid - c.start_vid) ASC
     """, (end, start))
 
+    # The reader's own tradition gets a slightly larger allowance so its
+    # position can be stated in full. Deliberately +1, not a takeover: the
+    # other traditions keep their slots, because a packet that only contains
+    # one side cannot produce an honest disputed section no matter what the
+    # prompt says.
+    lens_sources = set()
+    if lens:
+        lens_sources = {r["source_id"] for r in direct
+                        if (r.get("tradition") or "") == lens}
+
     picked, counts = [], {}
-    for r in direct:
-        if counts.get(r["source_id"], 0) >= per_source:
+    for r in sorted(direct, key=lambda x: 0 if x["source_id"] in lens_sources else 1):
+        cap = per_source + 1 if r["source_id"] in lens_sources else per_source
+        if counts.get(r["source_id"], 0) >= cap:
             continue
         counts[r["source_id"]] = counts.get(r["source_id"], 0) + 1
         picked.append(dict(r, retrieval="direct", score=1.0))
@@ -270,7 +282,7 @@ def commentary(con, start: int, end: int, question: str | None,
 
 
 def build_evidence(con, start: int, end: int, question: str | None,
-                   translations: list[str]) -> Evidence:
+                   translations: list[str], lens: str | None = None) -> Evidence:
     q = question or refs.range_label(start, end)
     return Evidence(
         passage=passage_text(con, start, end, translations),
@@ -278,5 +290,5 @@ def build_evidence(con, start: int, end: int, question: str | None,
         words=original_words(con, start, end),
         cross_refs=cross_references(con, start, end,
                                     translation=translations[0]),
-        commentary=commentary(con, start, end, q),
+        commentary=commentary(con, start, end, q, lens=lens),
     )
