@@ -210,7 +210,10 @@ button.go:disabled{background:var(--edge);color:var(--muted);cursor:wait}
 
 /* ── scripture: the hero ──────────────────────────────── */
 .passage{
-  position:sticky;top:20px;background:var(--raised);border:1px solid var(--edge);
+  /* start rather than sticky-to-top: a one-verse passage otherwise pins a
+     short card beside 2000px of findings, leaving most of the column empty */
+  position:sticky;align-self:start;top:20px;
+  background:var(--raised);border:1px solid var(--edge);
   border-radius:11px;padding:24px 26px;box-shadow:var(--shadow);
   max-height:calc(100vh - 44px);overflow-y:auto;
 }
@@ -318,7 +321,8 @@ button.go:disabled{background:var(--edge);color:var(--muted);cursor:wait}
 .sig{
   font-family:"IBM Plex Mono",monospace;font-size:9.5px;color:var(--verdigris);
   border:1px solid var(--verdigris);border-radius:3px;padding:1px 5px;margin-left:6px;
-  cursor:help;white-space:nowrap;opacity:.8;transition:all .12s;
+  cursor:help;opacity:.8;transition:all .12s;
+  display:inline-block;max-width:100%;overflow-wrap:anywhere;
 }
 .sig:hover{background:var(--verdigris);color:var(--ground);opacity:1}
 
@@ -336,23 +340,33 @@ button.go:disabled{background:var(--edge);color:var(--muted);cursor:wait}
 
 /* disputed — facing columns, like a diglot page */
 .dispute{
-  border:1px solid var(--verdigris);border-radius:9px;overflow:hidden;margin-bottom:15px;
+  border:1px solid var(--verdigris);border-radius:9px;overflow:hidden;
+  margin-bottom:15px;min-width:0;
 }
 .dispute-q{
   font-family:"EB Garamond",Georgia,serif;font-size:19px;font-weight:600;
   margin:0;padding:14px 16px 5px;color:var(--text);
 }
 .dispute-why{font-size:13.5px;color:var(--muted);margin:0;padding:0 16px 13px;font-style:italic}
-.positions{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--edge)}
-@media(max-width:680px){.positions{grid-template-columns:1fr}}
-.pos{background:var(--raised2);padding:14px 16px}
+/* min-width:0 is required on grid children. Their default of min-width:auto
+   means a column refuses to shrink below its content's intrinsic minimum —
+   and the citation chips below are white-space:nowrap, so a run of them sets
+   a floor wider than the card. The grid then overflows and the parent's
+   overflow:hidden silently clips the right-hand position mid-sentence. */
+.positions{
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  gap:1px;background:var(--edge);
+}
+@media(max-width:680px){.positions{grid-template-columns:minmax(0,1fr)}}
+.pos{background:var(--raised2);padding:14px 16px;min-width:0;overflow-wrap:anywhere}
 .pos-held{
   font-family:"IBM Plex Mono",monospace;font-size:9.5px;text-transform:uppercase;
   letter-spacing:.09em;color:var(--verdigris);margin-bottom:6px;
 }
 .pos-view{font-family:"EB Garamond",Georgia,serif;font-size:17px;font-weight:600;margin:0 0 7px;line-height:1.35;color:var(--text)}
 .pos-reason{font-size:13.5px;line-height:1.6;margin:0;color:var(--text-dim)}
-.pos-texts{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--muted);margin-top:9px}
+.pos-texts{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--muted);
+  margin-top:9px;overflow-wrap:anywhere}
 .dispute-foot{
   font-size:12.5px;color:var(--muted);padding:11px 16px;
   background:var(--raised);border-top:1px solid var(--verdigris);
@@ -663,6 +677,35 @@ select:focus{outline:none;border-color:var(--gold)}
 .note-meta button.note-del:hover{color:var(--rubric)}
 .note-empty{font-size:13.5px;color:var(--muted);font-style:italic;margin:14px 0 0}
 
+/* ── progress ─────────────────────────────────────────── */
+.progress{
+  background:var(--raised);border:1px solid var(--edge);border-radius:11px;
+  padding:20px 24px;box-shadow:var(--shadow);
+}
+.prog-rows{display:flex;flex-direction:column;gap:11px}
+.prog-row{
+  display:flex;align-items:flex-start;gap:11px;font-size:14.5px;
+  color:var(--muted);line-height:1.5;
+}
+.prog-row.live{color:var(--text)}
+.prog-row.done{color:var(--muted)}
+.prog-dot{
+  flex:0 0 8px;height:8px;border-radius:50%;background:var(--edge);margin-top:6px;
+}
+.prog-row.live .prog-dot{
+  background:var(--gold);
+  animation:pulse 1.3s ease-in-out infinite;
+}
+.prog-row.done .prog-dot{background:var(--verdigris)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+@media(prefers-reduced-motion:reduce){.prog-row.live .prog-dot{animation:none}}
+.prog-foot{
+  display:flex;align-items:baseline;gap:12px;margin-top:16px;padding-top:12px;
+  border-top:1px solid var(--edge);
+}
+#prog-time{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--gold)}
+.prog-note{font-size:12.5px;color:var(--muted);font-style:italic}
+
 /* ── states ───────────────────────────────────────────── */
 .msg{
   font-family:"EB Garamond",Georgia,serif;font-size:18px;color:var(--text-dim);
@@ -858,6 +901,13 @@ const STR = {
     tagline: "Study the text. Every claim shows its source.",
     lblRef: "Passage", lblQ: "What do you want to understand? (optional)",
     go: "Open the text", working: "Pulling the sources…",
+    stReading: (r) => `Opening ${r}`,
+    stFound: "Found",
+    stWriting: "Reading the sources and writing",
+    stChecking: "Checking every claim against its source",
+    stLocating: (q) => `Finding what scripture says about “${q}”`,
+    stElapsed: (s) => `${s}s`,
+    stPatience: "Studies take 30–90 seconds. It's working.",
     workingSub: "lexicon · cross-references · commentators",
     phRef: "Romans 5:1-5", phQ: "What does “justified” actually mean here?",
     introH: "What this does differently",
@@ -967,6 +1017,13 @@ const STR = {
     tagline: "Estudia el texto. Cada afirmación muestra su fuente.",
     lblRef: "Pasaje", lblQ: "¿Qué quieres entender? (opcional)",
     go: "Abrir el texto", working: "Buscando las fuentes…",
+    stReading: (r) => `Abriendo ${r}`,
+    stFound: "Encontrado",
+    stWriting: "Leyendo las fuentes y escribiendo",
+    stChecking: "Verificando cada afirmación con su fuente",
+    stLocating: (q) => `Buscando lo que dice la Escritura sobre “${q}”`,
+    stElapsed: (s) => `${s}s`,
+    stPatience: "Los estudios tardan 30–90 segundos. Está funcionando.",
     workingSub: "léxico · referencias cruzadas · comentaristas",
     phRef: "Romanos 5:1-5", phQ: "¿Qué significa realmente “justificados” aquí?",
     introH: "En qué se diferencia",
@@ -1197,6 +1254,16 @@ function paintPassage(){
   }
 }
 
+// The picker label is a display of the current reference, not an independent
+// control. It has to follow the ref field however that field was set — typed,
+// clicked from an example, or restored from history — otherwise it keeps
+// advertising the last passage chosen from the menu.
+function syncPickerLabel(){
+  const el = $("#picker-label");
+  const v = ($("#ref")?.value || "").trim();
+  if(el) el.textContent = v || (T().phRef.split(":")[0]);
+}
+
 function renderPassage(ref, verses){
   const primary = verses.filter(v => v.translation === verses[0].translation);
   const others  = verses.filter(v => v.translation !== verses[0].translation);
@@ -1409,7 +1476,7 @@ function renderPicker(){
     const ch = b && b.chapters.find(c => c.n === pickerChapter);
     if(!ch){ pickerChapter = null; return renderPicker(); }
     const go = ref => {
-      $("#ref").value = ref; $("#picker-label").textContent = ref;
+      $("#ref").value = ref; syncPickerLabel();
       pickerStart = null; closePicker(); run();
     };
     body.innerHTML =
@@ -1593,15 +1660,9 @@ async function runTopic(){
   if(!topic) return;
   $("#go-topic").disabled = true;
   $("#passage").innerHTML = "";
-  $("#apparatus").innerHTML =
-    `<p class="msg working">${esc(T().searching)}<small>${esc(T().searchingSub)}</small></p>`;
   try{
-    const r = await fetch("/api/topic", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({topic, lang:LANG})
-    });
-    const d = await r.json();
-    if(!r.ok){ if(await handleApiError(r, d)) return; throw new Error(d.error); }
+    const d = await runStreaming("/api/topic/stream", {topic, lang:LANG});
+    if(!d) return;
     indexEvidence(d.evidence);
     renderTopic(d);
     decorate();
@@ -1869,16 +1930,11 @@ async function runSermon(){
   if(!ref) return;
   $("#go-sermon").disabled = true;
   $("#passage").innerHTML = "";
-  $("#apparatus").innerHTML =
-    `<p class="msg working">${esc(T().building)}<small>${esc(T().buildingSub)}</small></p>`;
   try{
-    const r = await fetch("/api/sermon", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ref, lang:LANG, minutes:$("#s-min").value,
-                            audience:$("#s-aud").value.trim()})
-    });
-    const d = await r.json();
-    if(!r.ok){ if(await handleApiError(r, d)) return; throw new Error(d.error); }
+    const d = await runStreaming("/api/sermon/stream",
+      {ref, lang:LANG, minutes:$("#s-min").value,
+       audience:$("#s-aud").value.trim()});
+    if(!d) return;
     indexEvidence(d.evidence);
     renderSermon(d);
     decorate();
@@ -2267,14 +2323,100 @@ async function handleApiError(r, d){
   return false;
 }
 
+
+// ── progress ────────────────────────────────────────────────────────
+// Reads the server's stage events. Every line shown corresponds to something
+// that actually finished — the counts are the counts retrieved, not estimates.
+// A ticking clock runs alongside so a long wait still looks alive.
+let PROGRESS_TIMER = null, PROGRESS_T0 = 0;
+
+function progressStart(){
+  PROGRESS_T0 = Date.now();
+  $("#apparatus").innerHTML = `<div class="progress" id="prog">
+      <div class="prog-rows" id="prog-rows"></div>
+      <div class="prog-foot"><span id="prog-time">0s</span>
+        <span class="prog-note">${esc(T().stPatience)}</span></div>
+    </div>`;
+  clearInterval(PROGRESS_TIMER);
+  PROGRESS_TIMER = setInterval(() => {
+    const el = $("#prog-time");
+    if(el) el.textContent = T().stElapsed(Math.round((Date.now() - PROGRESS_T0) / 1000));
+  }, 1000);
+}
+
+function progressStop(){ clearInterval(PROGRESS_TIMER); PROGRESS_TIMER = null; }
+
+function progressStage(ev){
+  const t = T(), rows = $("#prog-rows");
+  if(!rows) return;
+  // Mark whatever was in flight as complete; a step only "finishes" when the
+  // next one starts, which is the truth of how the pipeline runs.
+  rows.querySelectorAll(".prog-row.live").forEach(r => {
+    r.classList.remove("live"); r.classList.add("done");
+  });
+  let text = "";
+  if(ev.stage === "reading")  text = t.stReading(ev.ref) + (ev.verses > 1 ? ` · ${ev.verses}` : "");
+  else if(ev.stage === "locating") text = t.stLocating(ev.topic);
+  else if(ev.stage === "found"){
+    text = `${t.stFound}: ${ev.line}`;
+    if(ev.traditions?.length) text += ` · ${ev.traditions.join(", ")}`;
+  }
+  else if(ev.stage === "writing")  text = t.stWriting;
+  else if(ev.stage === "checking") text = t.stChecking;
+  else return;
+  const div = document.createElement("div");
+  div.className = "prog-row live";
+  div.innerHTML = `<span class="prog-dot"></span><span>${esc(text)}</span>`;
+  rows.appendChild(div);
+}
+
+// Streams newline-delimited SSE. Falls back to the plain endpoint if streaming
+// is unavailable (some proxies buffer it into uselessness), so the feature can
+// never be the reason a study fails.
+async function runStreaming(url, body, onDone){
+  progressStart();
+  let res;
+  try{
+    res = await fetch(url, {method:"POST",
+      headers:{"Content-Type":"application/json"}, body: JSON.stringify(body)});
+  }catch(e){ progressStop(); throw e; }
+
+  if(!res.ok || !res.body || !(res.headers.get("content-type") || "").includes("event-stream")){
+    progressStop();
+    const d = await res.json().catch(() => ({error:"Request failed"}));
+    if(await handleApiError(res, d)) return null;
+    throw new Error(d.error || "Request failed");
+  }
+
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "", payload = null, err = null;
+  while(true){
+    const {done, value} = await reader.read();
+    if(done) break;
+    buf += dec.decode(value, {stream:true});
+    const parts = buf.split("\n\n");
+    buf = parts.pop();
+    for(const p of parts){
+      const line = p.split("\n").find(l => l.startsWith("data: "));
+      if(!line) continue;
+      let ev; try{ ev = JSON.parse(line.slice(6)); }catch{ continue; }
+      if(ev.stage === "done") payload = ev.payload;
+      else if(ev.stage === "error") err = ev.error;
+      else progressStage(ev);
+    }
+  }
+  progressStop();
+  if(err) throw new Error(err);
+  return payload;
+}
+
 async function run(){
   const ref = $("#ref").value.trim();
   const q   = $("#q").value.trim();
   if(!ref) return;
 
   $("#go").disabled = true;
-  $("#apparatus").innerHTML =
-    `<p class="msg working">${esc(T().working)}<small>${esc(T().workingSub)}</small></p>`;
 
   try{
     const pr = await fetch(`/api/passage?ref=${encodeURIComponent(ref)}&lang=${LANG}`);
@@ -2283,12 +2425,9 @@ async function run(){
     INTERLINEAR = pd.interlinear || [];
     renderPassage(pd.ref, pd.verses);
 
-    const sr = await fetch("/api/study", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ref, question:q, lang:LANG})
-    });
-    const sd = await sr.json();
-    if(!sr.ok){ if(await handleApiError(sr, sd)) return; throw new Error(sd.error); }
+    const sd = await runStreaming("/api/study/stream",
+      {ref, question:q, lang:LANG});
+    if(!sd) return;
     indexEvidence(sd.evidence);
     renderStudy(sd);
     decorate();
@@ -2301,6 +2440,7 @@ async function run(){
   }
 }
 
+$("#ref").addEventListener("input", syncPickerLabel);
 $("#go").addEventListener("click", run);
 ["ref","q"].forEach(id =>
   $("#"+id).addEventListener("keydown", e => { if(e.key === "Enter") run(); }));

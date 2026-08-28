@@ -3,6 +3,8 @@ import json
 import os
 import time
 
+from flask import Response, stream_with_context
+
 from flask import Flask, jsonify, render_template, request
 
 from . import refs, retrieval, validate, llm, store, topics, limits
@@ -604,6 +606,274 @@ def create_app(config=None):
     def api_history_delete(key):
         store.delete_entry(get_db(), key)
         return jsonify({"ok": True})
+
+    # ── progress streaming ────────────────────────────────────────────
+    # Real stages, not a timer. Each event is emitted at the moment that step
+    # actually completes, so the counts shown are the counts retrieved. A
+    # progress bar that lies is worse than no progress bar — the user learns
+    # to distrust it and it stops meaning anything.
+    def sse(payload: dict) -> str:
+        return f"data: {json.dumps(payload)}\n\n"
+
+    def streamed_db():
+        """
+        A connection owned by the stream itself.
+
+        get_db() stores the connection on the request context, which Flask
+        tears down as soon as the view returns — and a streaming view returns
+        immediately, before the generator has produced anything. The generator
+        then runs against a closed database. Streams manage their own
+        connection and close it in a finally.
+        """
+        return store.connect()
+
+    def stream(generator):
+        return Response(
+            stream_with_context(generator),
+            mimetype="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",   # proxies otherwise hold the whole
+                                             # response until the end, which
+                                             # defeats the entire point
+                "Connection": "keep-alive",
+            },
+        )
+
+    def evidence_summary(ev, lang):
+        c, w, x = len(ev["commentary"]), len(ev["words"]), len(ev["cross_refs"])
+        trads = sorted({e.get("tradition") for e in ev["commentary"] if e.get("tradition")})
+        if lang == "es":
+            bits = [f"{c} pasajes de comentario" if c else None,
+                    f"{w} entradas de léxico" if w else None,
+                    f"{x} referencias cruzadas" if x else None]
+        else:
+            bits = [f"{c} commentary passages" if c else None,
+                    f"{w} lexicon entries" if w else None,
+                    f"{x} cross-references" if x else None]
+        line = " · ".join(b for b in bits if b) or ("sin fuentes" if lang == "es" else "no sources")
+        return {"line": line, "traditions": trads}
+
+    @app.post("/api/study/stream")
+    def api_study_stream():
+        body = request.get_json(silent=True) or {}
+        lang = _lang(body.get("lang"))
+        ref = body.get("ref", "")
+        question = (body.get("question") or "").strip() or None
+
+        blocked = guard("study")
+        if blocked:
+            return blocked
+
+        model = app.config["MODEL"]
+        translations = _translations(lang)
+
+        def steps():
+            con = streamed_db()
+            try:
+                t0 = time.time()
+                try:
+                    start, end = refs.parse(ref)
+                except refs.RefError as e:
+                    yield sse({"stage": "error", "error": str(e)}); return
+
+                translation = translations[0]
+                start, end, n = retrieval.actual_range(con, start, end, translation)
+                if not n:
+                    yield sse({"stage": "error", "error": f"No text found in {translation}."}); return
+                if n > 80:
+                    yield sse({"stage": "error", "error":
+                               f"{refs.range_label(start, end, lang)} has {n} verses — "
+                               f"pick up to 80."}); return
+
+                label = refs.range_label(start, end, lang)
+                key = hashlib.sha256(
+                    f"{start}:{end}:{question}:{lang}:{model}".encode()).hexdigest()
+
+                if app.config["CACHE_STUDIES"]:
+                    hit = store.rows(con, "SELECT payload FROM studies WHERE cache_key = ?", (key,))
+                    if hit:
+                        pl = hit[0]["payload"]
+                        out = json.loads(pl) if isinstance(pl, str) else pl
+                        out["cached"] = True
+                        yield sse({"stage": "done", "payload": out}); return
+
+                yield sse({"stage": "reading", "ref": label, "verses": n})
+
+                evidence = retrieval.build_evidence(con, start, end, question, translations)
+                ev = evidence.to_dict()
+                summ = evidence_summary(ev, lang)
+                yield sse({"stage": "found", **summ})
+
+                yield sse({"stage": "writing"})
+                try:
+                    raw = llm.generate_study(ev, label, question, model=model, lang=lang)
+                except (llm.ModelError, RuntimeError) as e:
+                    yield sse({"stage": "error", "error": str(e)}); return
+
+                yield sse({"stage": "checking"})
+                study, report = validate.validate(raw, ev, lang=lang)
+
+                payload = {
+                    "ref": label, "lang": lang, "question": question,
+                    "study": study, "evidence": ev, "integrity": report.to_dict(),
+                    "model": model,
+                    "elapsed_ms": int((time.time() - t0) * 1000), "cached": False,
+                }
+                if app.config["CACHE_STUDIES"]:
+                    store.upsert_study(con, key, start, end, question,
+                                       json.dumps(payload), model,
+                                       kind="study", title=label, lang=lang)
+                yield sse({"stage": "done", "payload": payload})
+
+            finally:
+                store.release(con)
+
+        return stream(steps())
+
+    @app.post("/api/topic/stream")
+    def api_topic_stream():
+        body = request.get_json(silent=True) or {}
+        lang = _lang(body.get("lang"))
+        topic = (body.get("topic") or "").strip()
+        if not topic:
+            return jsonify({"error": "Enter a topic."}), 400
+        blocked = guard("topic")
+        if blocked:
+            return blocked
+
+        model = app.config["MODEL"]
+        translation = _translations(lang)[0]
+
+        def steps():
+            con = streamed_db()
+            try:
+                t0 = time.time()
+                key = hashlib.sha256(f"topic:{topic.lower()}:{lang}:{model}".encode()).hexdigest()
+                if app.config["CACHE_STUDIES"]:
+                    hit = store.rows(con, "SELECT payload FROM topics WHERE cache_key = ?", (key,))
+                    if hit:
+                        pl = hit[0]["payload"]
+                        out = json.loads(pl) if isinstance(pl, str) else pl
+                        out["cached"] = True
+                        yield sse({"stage": "done", "payload": out}); return
+
+                yield sse({"stage": "locating", "topic": topics.neutralise(topic)})
+                try:
+                    ev = topics.build_topic_evidence(con, topic, translation, lang)
+                except Exception as e:
+                    yield sse({"stage": "error", "error": f"Search failed: {e}"}); return
+                if not ev["passage"]:
+                    yield sse({"stage": "error", "error": "No verses matched."}); return
+
+                named = sum(1 for v in ev["passage"] if v["why_retrieved"].startswith("named"))
+                hubs = sum(1 for v in ev["passage"] if v["why_retrieved"] == "cross-reference hub")
+                yield sse({"stage": "found",
+                           "line": (f"{len(ev['passage'])} versículos · {hubs} centrales"
+                                    if lang == "es" else
+                                    f"{len(ev['passage'])} verses · {named} named · {hubs} cross-reference hubs"),
+                           "traditions": sorted({c.get("tradition") for c in ev["commentary"]
+                                                 if c.get("tradition")})})
+
+                yield sse({"stage": "writing"})
+                try:
+                    raw = llm.generate_topic(ev, topic, model=model, lang=lang)
+                except (llm.ModelError, RuntimeError) as e:
+                    yield sse({"stage": "error", "error": str(e)}); return
+
+                yield sse({"stage": "checking"})
+                study, report = validate.validate_topic(raw, ev, lang=lang)
+                payload = {
+                    "topic": topic, "neutralised_query": ev.get("neutralised_query"),
+                    "lang": lang, "study": study, "evidence": ev,
+                    "integrity": report.to_dict(), "model": model,
+                    "elapsed_ms": int((time.time() - t0) * 1000), "cached": False,
+                }
+                if app.config["CACHE_STUDIES"]:
+                    store.upsert_topic(con, key, topic, lang, json.dumps(payload), model)
+                yield sse({"stage": "done", "payload": payload})
+
+            finally:
+                store.release(con)
+
+        return stream(steps())
+
+    @app.post("/api/sermon/stream")
+    def api_sermon_stream():
+        body = request.get_json(silent=True) or {}
+        lang = _lang(body.get("lang"))
+        blocked = guard("sermon")
+        if blocked:
+            return blocked
+        model = app.config["MODEL"]
+        translations = _translations(lang)
+        opts = {
+            "audience": (body.get("audience") or "").strip()[:120],
+            "minutes": body.get("minutes") or 25,
+            "occasion": (body.get("occasion") or "").strip()[:120],
+            "angle": (body.get("angle") or "").strip()[:200],
+        }
+        ref = body.get("ref", "")
+
+        def steps():
+            con = streamed_db()
+            try:
+                t0 = time.time()
+                try:
+                    start, end = refs.parse(ref)
+                except refs.RefError as e:
+                    yield sse({"stage": "error", "error": str(e)}); return
+                translation = translations[0]
+                start, end, n = retrieval.actual_range(con, start, end, translation)
+                if not n:
+                    yield sse({"stage": "error", "error": f"No text found in {translation}."}); return
+                if n > 80:
+                    yield sse({"stage": "error", "error":
+                               f"{refs.range_label(start, end, lang)} has {n} verses — "
+                               f"pick a shorter passage to preach."}); return
+
+                label = refs.range_label(start, end, lang)
+                key = hashlib.sha256(
+                    f"sermon:{start}:{end}:{json.dumps(opts, sort_keys=True)}:{lang}:{model}".encode()
+                ).hexdigest()
+                if app.config["CACHE_STUDIES"]:
+                    hit = store.rows(con, "SELECT payload FROM studies WHERE cache_key = ?", (key,))
+                    if hit:
+                        pl = hit[0]["payload"]
+                        out = json.loads(pl) if isinstance(pl, str) else pl
+                        out["cached"] = True
+                        yield sse({"stage": "done", "payload": out}); return
+
+                yield sse({"stage": "reading", "ref": label, "verses": n})
+                evidence = retrieval.build_evidence(con, start, end, opts["angle"] or None, translations)
+                ev = evidence.to_dict()
+                yield sse({"stage": "found", **evidence_summary(ev, lang)})
+
+                yield sse({"stage": "writing"})
+                try:
+                    raw = llm.generate_sermon(ev, label, opts, model=model, lang=lang)
+                except (llm.ModelError, RuntimeError) as e:
+                    yield sse({"stage": "error", "error": str(e)}); return
+
+                yield sse({"stage": "checking"})
+                raw["_target_minutes"] = int(opts["minutes"] or 25)
+                study, report = validate.validate_sermon(raw, ev, lang=lang)
+                payload = {
+                    "ref": label, "lang": lang, "opts": opts, "kind": "sermon",
+                    "study": study, "evidence": ev, "integrity": report.to_dict(),
+                    "model": model,
+                    "elapsed_ms": int((time.time() - t0) * 1000), "cached": False,
+                }
+                if app.config["CACHE_STUDIES"]:
+                    store.upsert_study(con, key, start, end, opts["angle"] or opts["audience"],
+                                       json.dumps(payload), model,
+                                       kind="sermon", title=label, lang=lang)
+                yield sse({"stage": "done", "payload": payload})
+
+            finally:
+                store.release(con)
+
+        return stream(steps())
 
     @app.get("/healthz")
     def healthz():
