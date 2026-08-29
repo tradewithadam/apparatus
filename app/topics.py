@@ -407,8 +407,33 @@ def build_topic_evidence(con, topic: str, translation: str,
                 "kjv_usage": (r["kjv_usage"] or "").strip(),
                 "corpus_freq": r["corpus_freq"],
             })
-        words.sort(key=lambda w: w["corpus_freq"])
-        words = words[:20]
+        # Rank by relevance first, rarity second.
+        #
+        # Sorting on rarity alone asks "which of these words is unusual?" when
+        # the reader asked "which of these words is about anger?". A rare term
+        # for "gentle" sitting in a retrieved verse would outrank the actual
+        # vocabulary of wrath, because it happens to occur less often in the
+        # canon. Rarity is a decent tiebreaker and a poor primary sort.
+        topic_words = {w for w in re.findall(r"[A-Za-zÀ-ÿ]{4,}", " ".join(
+            [query] + [t for t in terms if t])) if w.lower() not in _KW_STOP}
+        topic_words = {w.lower() for w in topic_words}
+
+        def relevance(w):
+            hay = " ".join([w.get("definition", ""), w.get("kjv_usage", ""),
+                            w.get("surface", ""), w.get("derivation", "")]).lower()
+            hits = sum(1 for t in topic_words
+                       if t in hay or t[:max(4, len(t) - 2)] in hay)
+            return hits
+
+        # Same "does this word carry the verse" measure as a passage study,
+        # then tilted toward the thing that was asked. A topic search should
+        # not offer a word simply because it is unusual, nor a word that is
+        # on-topic but grammatically trivial.
+        from .retrieval import worth_explaining
+        for w in words:
+            w["weight"] = round(worth_explaining(w) + 0.5 * min(relevance(w), 2), 4)
+        words.sort(key=lambda w: -w["weight"])
+        words = [w for w in words if w["weight"] > 0][:20] or words[:20]
 
     # Commentary bearing on any retrieved verse.
     commentary = []

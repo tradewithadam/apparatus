@@ -67,6 +67,13 @@ services:
       - key: VOYAGE_BASE_URL
         value: https://ai.mongodb.com/v1   # Atlas key. Remove if from voyageai.com
       # ── spending guards ──────────────────────────────────────────
+      # How many studies may render progressively at once. Streaming costs real
+      # CPU per token, and this instance has about half a core — a second
+      # concurrent stream tripled everyone's wait. Extra readers get the plain
+      # call, which is less pretty and finishes sooner. Raise it on a bigger
+      # instance.
+      - key: STREAM_SLOTS
+        value: "1"
       - key: MAX_COMMENTARY
         value: "12"            # evidence passages per study; the main cost dial
       - key: GLOBAL_DAILY_CAP

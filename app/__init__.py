@@ -874,10 +874,20 @@ def create_app(config=None):
                                        "connections", "common_misreadings")}
                 sent_scalar = set()
                 raw = None
+
+                # Progressive rendering only when the machine can afford it.
+                # Under load the plain call finishes sooner, so waiting for the
+                # whole study beats watching a starved one trickle in.
+                streaming = llm.stream_slot_free()
                 try:
-                    for kind, obj in llm.stream_study(ev, label, question,
-                                                      model=model, lang=lang,
-                                                      lens=lens):
+                    if not streaming:
+                        raw = llm.generate_study(ev, label, question, model=model,
+                                                 lang=lang, lens=lens)
+                        source = ()
+                    else:
+                        source = llm.stream_study(ev, label, question,
+                                                  model=model, lang=lang, lens=lens)
+                    for kind, obj in source:
                         if kind == "final":
                             raw = obj
                             break
@@ -902,6 +912,9 @@ def create_app(config=None):
                                                "value": clean})
                 except (llm.ModelError, RuntimeError) as e:
                     yield sse({"stage": "error", "error": str(e)}); return
+                finally:
+                    if streaming:
+                        llm.release_stream_slot()
 
                 if raw is None:
                     yield sse({"stage": "error", "error": "Model returned nothing"}); return
@@ -981,10 +994,53 @@ def create_app(config=None):
                                                  if c.get("tradition")})})
 
                 yield sse({"stage": "writing"})
+
+                # Same progressive rendering as a passage study, and the same
+                # slot rule: only stream when the machine has room, otherwise
+                # take the plain call and arrive sooner.
+                ctx = validate.prepare(ev, lang)
+                from .partial import settled_items, scalar_ready
+                sent = {k: 0 for k in ("what_scripture_addresses", "key_passages",
+                                       "commonly_cited_but_does_not_say_this",
+                                       "key_terms", "positions")}
+                sent_scalar = set()
+                raw = None
+                streaming = llm.stream_slot_free()
                 try:
-                    raw = llm.generate_topic(ev, topic, model=model, lang=lang, lens=lens)
+                    if not streaming:
+                        raw = llm.generate_topic(ev, topic, model=model,
+                                                 lang=lang, lens=lens)
+                        source = ()
+                    else:
+                        source = llm.stream_topic(ev, topic, model=model,
+                                                  lang=lang, lens=lens)
+                    for kind, obj in source:
+                        if kind == "final":
+                            raw = obj
+                            break
+                        if scalar_ready(obj, "scope_note",
+                                        ("what_scripture_addresses", "key_passages")) \
+                                and "scope_note" not in sent_scalar:
+                            sent_scalar.add("scope_note")
+                            yield sse({"stage": "section", "key": "scope_note",
+                                       "value": obj["scope_note"]})
+                        for key in sent:
+                            ready = settled_items(obj, key)
+                            while len(ready) > sent[key]:
+                                item = ready[sent[key]]
+                                sent[key] += 1
+                                clean = validate.check_one(key, item, ctx)
+                                if clean:
+                                    yield sse({"stage": "item", "key": key,
+                                               "value": clean})
                 except (llm.ModelError, RuntimeError) as e:
                     yield sse({"stage": "error", "error": str(e)}); return
+                finally:
+                    if streaming:
+                        llm.release_stream_slot()
+
+                if raw is None:
+                    yield sse({"stage": "error", "error": "Model returned nothing"}); return
 
                 log_usage(con, "topic", user_id=uid)
                 yield sse({"stage": "checking"})

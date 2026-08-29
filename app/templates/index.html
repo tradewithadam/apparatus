@@ -2968,7 +2968,12 @@ function liveSection(key, value){
   if(!LIVE) return;
   const t = T(), box = $("#live");
   if(!box) return;
-  if(key === "summary"){
+  if(key === "scope_note"){
+    box.insertAdjacentHTML("beforeend",
+      `<section id="live-scope"><div class="sec-head">
+         <span class="sec-title">${esc(t.secScope)}</span></div>
+         <p class="scope">${esc(value)}</p></section>`);
+  } else if(key === "summary"){
     box.insertAdjacentHTML("beforeend",
       `<section id="live-summary"><div class="sec-head">
          <span class="sec-title">${esc(t.secSummary)}</span></div>
@@ -2987,6 +2992,11 @@ const LIVE_TITLES = {
   settled: () => T().secSettled, key_terms: () => T().secTerms,
   disputed: () => T().secDisputed, connections: () => T().secConn,
   common_misreadings: () => T().secMisread,
+  // topic study
+  what_scripture_addresses: () => T().secAddresses,
+  key_passages: () => T().secKeyPassages,
+  commonly_cited_but_does_not_say_this: () => T().secMisuse,
+  positions: () => T().secPositions,
 };
 
 function liveItem(key, item){
@@ -3036,6 +3046,30 @@ function liveItem(key, item){
   } else if(key === "common_misreadings"){
     html = `<div class="misread"><p class="misread-x">${esc(item.misreading)}</p>
       <p class="misread-fix">${esc(item.correction)}${sigs(item.cites)}</p></div>`;
+  } else if(key === "what_scripture_addresses"){
+    html = `<div class="claim">
+      <span class="cert" data-c="${esc(item.certainty)}"><i></i>
+        <small>${T().cert[item.certainty]||""}</small></span>
+      <span class="claim-body">${esc(item.claim)}${sigs(item.cites)}</span></div>`;
+  } else if(key === "key_passages"){
+    html = `<div class="kp"><span class="kp-ref">${esc(item.ref)}</span>
+      <span>${esc(item.what_it_says)}${sigs(item.cites)}
+        <span class="kp-w" data-w="${esc(item.weight)}">${esc(t[item.weight]||item.weight)}</span>
+      </span></div>`;
+  } else if(key === "commonly_cited_but_does_not_say_this"){
+    html = `<div class="misuse"><div class="misuse-ref">${esc(item.ref)}</div>
+      <p class="misuse-pop">${esc(item.popular_use)}</p>
+      <p class="misuse-real">${esc(item.what_it_actually_says)}${sigs(item.cites)}</p></div>`;
+  } else if(key === "positions"){
+    // Positions arrive one at a time, so each gets its own row rather than a
+    // two-column grid that would reflow as the second one lands.
+    html = `<div class="dispute" style="margin-bottom:10px"><div class="positions"
+      style="grid-template-columns:minmax(0,1fr)"><div class="pos">
+      <div class="pos-held">${esc(item.held_by)}</div>
+      <p class="pos-view">${esc(item.view)}</p>
+      <p class="pos-reason">${esc(item.reasoning)}${sigs(item.cites)}</p>
+      ${item.key_texts?.length ? `<div class="pos-texts">${item.key_texts.map(esc).join(" · ")}</div>` : ""}
+      </div></div></div>`;
   }
   body.insertAdjacentHTML("beforeend", html);
   if(key === "key_terms") wireTermHighlight();

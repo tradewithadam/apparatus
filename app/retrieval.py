@@ -118,14 +118,71 @@ def interlinear(con, start: int, end: int, lang: str = "en") -> list[dict]:
     return out
 
 
-def original_words(con, start: int, end: int, limit: int = 24) -> list[dict]:
-    """
-    Hebrew/Greek words in the passage, joined to Strong's.
+# Grammatical categories that are almost never the word worth explaining.
+# Articles, conjunctions, particles and prepositions do carry meaning, and
+# occasionally a great deal of it, but they are not what a reader means when
+# they ask what is behind the English.
+_FUNCTION_WORDS = ("article", "conjunction", "particle", "preposition",
+                   "artículo", "conjunción")
 
-    Ranked by rarity: a word appearing 12 times in the whole canon is far more
-    likely to be worth explaining than one appearing 8,000 times. This is a
-    cheap heuristic that consistently surfaces the interesting terms.
+
+def worth_explaining(w: dict) -> float:
     """
+    How much does this word carry the verse?
+
+    Rarity alone was the old rule and it is a poor one: it answers "which of
+    these words is unusual?" when the reader asked "which of these words is
+    doing the work?" A rare term for "gentle" in Proverbs 15:1 outranked the
+    word for wrath, because it happens to occur less often in the canon.
+
+    Better signals, in order of usefulness:
+
+    TRANSLATION SPREAD. The `kjv_usage` field lists every English word the KJV
+    used for this term. A word rendered fifteen different ways is one English
+    has no single equivalent for — which is precisely the word where the
+    English is hiding something. This is the strongest signal available and it
+    was going unused.
+
+    PART OF SPEECH. Verbs and nouns carry a sentence. Articles and particles
+    are skipped unless nothing else is on offer.
+
+    DEFINITION RICHNESS. A lexicon entry with several distinct senses marks a
+    word doing more than one job.
+
+    FREQUENCY, gently. Very common words are usually plumbing, and true
+    one-offs are often proper nouns. The middle is where the interesting
+    theological vocabulary lives, so this is a mild curve rather than a sort.
+    """
+    morph = (w.get("morph") or "").lower()
+    if any(f in morph for f in _FUNCTION_WORDS):
+        return 0.0
+
+    usage = w.get("kjv_usage") or ""
+    renderings = len([x for x in usage.replace(";", ",").split(",") if x.strip()])
+    spread = min(renderings, 12) / 12.0
+
+    senses = (w.get("definition") or "")
+    richness = min(len([x for x in senses.replace(";", ",").split(",") if x.strip()]), 6) / 6.0
+
+    pos = 1.0 if ("verb" in morph or "noun" in morph) else 0.55 if morph else 0.7
+
+    freq = w.get("corpus_freq") or 1
+    # Peaks around a few hundred occurrences; falls away for plumbing words
+    # and for one-off names.
+    if freq <= 3:
+        rarity = 0.35
+    elif freq < 800:
+        rarity = 1.0
+    elif freq < 3000:
+        rarity = 0.6
+    else:
+        rarity = 0.25
+
+    return round(0.42 * spread + 0.20 * richness + 0.20 * pos + 0.18 * rarity, 4)
+
+
+def original_words(con, start: int, end: int, limit: int = 24) -> list[dict]:
+    """Hebrew/Greek words in the passage, ranked by how much they carry it."""
     rows = _rows(con, """
         SELECT vw.vid, vw.position, vw.surface, s.id, s.lang, s.lemma,
                s.translit, s.definition, s.derivation, s.kjv_usage,
@@ -157,8 +214,10 @@ def original_words(con, start: int, end: int, limit: int = 24) -> list[dict]:
             "morph": r["morph"] or "",
             "in_context": r["gloss"] or "",
         })
-    out.sort(key=lambda w: w["corpus_freq"])
-    return out[:limit]
+    for w in out:
+        w["weight"] = worth_explaining(w)
+    out.sort(key=lambda w: -w["weight"])
+    return [w for w in out if w["weight"] > 0][:limit] or out[:limit]
 
 
 def cross_references(con, start: int, end: int, limit: int = 12,

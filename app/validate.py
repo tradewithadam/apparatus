@@ -541,6 +541,19 @@ def check_one(section: str, item: dict, ctx: dict) -> dict | None:
         if sid and sid not in ctx["allowed"]:
             return None
 
+    if section == "positions":
+        # A position needs someone who holds it. "Some Christians think" is not
+        # a position, it is a way of avoiding naming one.
+        if not (item.get("view") and item.get("held_by")):
+            return None
+        if VAGUE_HOLDERS.match(item.get("held_by", "")):
+            return None
+        return item
+
+    if section == "commonly_cited_but_does_not_say_this":
+        if not (item.get("ref") and item.get("what_it_actually_says")):
+            return None
+
     if section == "disputed":
         positions = [p for p in (item.get("positions") or []) if isinstance(p, dict)]
         if len(positions) < 2:

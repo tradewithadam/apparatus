@@ -14,6 +14,34 @@ from .prompts import system_for, STUDY_SCHEMA, build_user_turn
 
 _client = None
 
+# How many studies may use the token-by-token path at once.
+#
+# Streaming is not free: the SDK parses thousands of server-sent events per
+# study, and that is Python work, which means one thread at a time. On a
+# half-CPU instance two concurrent streams do not share the work — they take
+# turns, and a 60-second study becomes 180. Beyond this limit the non-streaming
+# call is used instead: the reader loses text appearing progressively, but the
+# study arrives sooner than it would have with it.
+import threading as _th
+
+STREAM_SLOTS = int(os.environ.get("STREAM_SLOTS", "1"))
+_stream_gate = _th.BoundedSemaphore(STREAM_SLOTS) if STREAM_SLOTS > 0 else None
+
+
+def stream_slot_free() -> bool:
+    """Take a streaming slot if one is going. Caller must release it."""
+    if _stream_gate is None:
+        return False
+    return _stream_gate.acquire(blocking=False)
+
+
+def release_stream_slot():
+    try:
+        if _stream_gate is not None:
+            _stream_gate.release()
+    except ValueError:
+        pass
+
 # Filled in by each generate_* call so the caller can log real token counts
 # rather than guessing from text length.
 # Per-thread, not global. With several people studying at once a single shared
@@ -238,3 +266,46 @@ def stream_study(evidence: dict, ref_label: str, question: str | None,
             yield ("final", block.input)
             return
     raise ModelError("Model returned no study object")
+
+
+def stream_topic(evidence: dict, topic: str, model: str = "claude-sonnet-4-6",
+                 max_tokens: int = 7000, lang: str = "en", lens: str | None = None):
+    """Topical study, section by section. Same contract as stream_study."""
+    from .prompts import TOPIC_SCHEMA, topic_system_for, build_topic_turn
+    from .partial import parse_partial
+    import time as _time
+
+    tool = {"name": "emit_topic_study",
+            "description": "Return the completed, fully cited topical study.",
+            "input_schema": TOPIC_SCHEMA}
+    buf, last_parse = "", 0.0
+    try:
+        with client().messages.stream(
+            model=model, max_tokens=max_tokens,
+            system=[{"type": "text", "text": topic_system_for(lang, lens),
+                     "cache_control": {"type": "ephemeral"}}],
+            tools=[tool],
+            tool_choice={"type": "tool", "name": "emit_topic_study"},
+            messages=[{"role": "user", "content": build_topic_turn(evidence, topic, lang)}],
+        ) as s:
+            for event in s:
+                if getattr(event, "type", "") == "content_block_delta":
+                    chunk = getattr(getattr(event, "delta", None), "partial_json", None)
+                    if chunk:
+                        buf += chunk
+                        now = _time.monotonic()
+                        if now - last_parse >= 0.25:
+                            last_parse = now
+                            obj = parse_partial(buf)
+                            if obj:
+                                yield ("partial", obj)
+            final = s.get_final_message()
+            _record(final, model)
+    except APIError as e:
+        raise ModelError(f"Model request failed: {e}") from e
+
+    for block in final.content:
+        if getattr(block, "type", None) == "tool_use":
+            yield ("final", block.input)
+            return
+    raise ModelError("Model returned no topic study")
