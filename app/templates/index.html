@@ -859,6 +859,18 @@ select:focus{outline:none;border-color:var(--gold)}
 .empty h2{font-family:"EB Garamond",Georgia,serif;font-size:24px;font-weight:600;margin:0 0 13px;color:var(--gold)}
 .empty p{font-size:15px;line-height:1.68;color:var(--text-dim);margin:0 0 13px}
 .empty p:last-child{margin-bottom:0}
+/* The verse the whole thing is named after. Set quietly — it is a reason, not
+   a slogan, and it should read as an epigraph rather than a banner. */
+.introverse{
+  margin:20px 0 0;padding:16px 0 0;border-top:1px solid var(--edge);
+  font-family:"EB Garamond",Georgia,serif;font-size:16.5px;line-height:1.6;
+  color:var(--text-dim);font-style:italic;
+}
+.introverse cite{
+  display:block;margin-top:8px;font-family:"IBM Plex Mono",monospace;
+  font-size:10px;letter-spacing:.11em;text-transform:uppercase;
+  color:var(--gold);font-style:normal;
+}
 
 footer{border-top:1px solid var(--edge);padding:20px 26px;font-size:12px;color:var(--muted);background:var(--raised)}
 footer div{max-width:1280px;margin:0 auto;line-height:1.7}
@@ -1058,9 +1070,12 @@ const STR = {
     stPatience: "Studies take 30–90 seconds. It's working.",
     workingSub: "lexicon · cross-references · commentators",
     phRef: "Romans 5:1-5", phQ: "What does “justified” actually mean here?",
-    introH: "What this does differently",
-    introP1: "Most AI Bible tools give you one confident answer. This one retrieves real sources first — lexicons, cross-references, commentators from several traditions — then separates what the church broadly agrees on from what it has argued about for centuries, and shows you which is which.",
-    introP2: "Claims that can’t be traced to a retrieved source are removed before you see them, and the count is published at the bottom of every study.",
+    introH: "Open the text and see what\u2019s under it",
+    introP1: "The Hebrew or Greek behind the English, word by word. What the passage meant to the people who first heard it. How the church has read it across two thousand years \u2014 Chrysostom in the fourth century, Calvin and Wesley and Matthew Henry, ten traditions in all.",
+    introP2: "Where Christians agree, you\u2019ll see it said plainly. Where faithful people have differed \u2014 and on some passages they have, for centuries \u2014 you\u2019ll see each side put at its strongest, and you\u2019ll be pointed to your pastor rather than handed a verdict.",
+    introP3: "Every claim names the source it came from. Anything that can\u2019t be traced to one never reaches you.",
+    introVerse: "\u201cThey received the word with all readiness, and searched the Scriptures daily to see whether those things were so.\u201d",
+    introVerseRef: "Acts 17:11",
     secSummary: "In plain words", secContext: "Where this sits",
     ctxBook: "In the book", ctxOccasion: "Occasion",
     secTerms: "Behind the translation", termsNote: "from Strong’s",
@@ -1190,9 +1205,12 @@ const STR = {
     stPatience: "Los estudios tardan 30–90 segundos. Está funcionando.",
     workingSub: "léxico · referencias cruzadas · comentaristas",
     phRef: "Romanos 5:1-5", phQ: "¿Qué significa realmente “justificados” aquí?",
-    introH: "En qué se diferencia",
-    introP1: "La mayoría de las herramientas bíblicas con IA te dan una respuesta segura. Esta primero busca fuentes reales — léxicos, referencias cruzadas, comentaristas de varias tradiciones — y luego separa lo que la iglesia acepta ampliamente de lo que ha debatido durante siglos, mostrándote cuál es cuál.",
-    introP2: "Las afirmaciones que no se pueden rastrear hasta una fuente se eliminan antes de que las veas, y el número se publica al final de cada estudio.",
+    introH: "Abre el texto y mira lo que hay debajo",
+    introP1: "El hebreo o el griego detr\u00e1s del espa\u00f1ol, palabra por palabra. Lo que el pasaje signific\u00f3 para quienes lo escucharon primero. C\u00f3mo lo ha le\u00eddo la iglesia durante dos mil a\u00f1os \u2014 Cris\u00f3stomo en el siglo cuarto, Calvino, Wesley y Matthew Henry: diez tradiciones en total.",
+    introP2: "Donde los cristianos coinciden, lo ver\u00e1s dicho con claridad. Donde han diferido \u2014 y en algunos pasajes lo han hecho por siglos \u2014 ver\u00e1s cada postura en su mejor forma, y se te remitir\u00e1 a tu pastor en lugar de darte un veredicto.",
+    introP3: "Cada afirmaci\u00f3n nombra la fuente de donde viene. Lo que no se puede rastrear nunca llega a ti.",
+    introVerse: "\u201cRecibieron la palabra con toda solicitud, escudri\u00f1ando cada d\u00eda las Escrituras para ver si estas cosas eran as\u00ed.\u201d",
+    introVerseRef: "Hechos 17:11",
     secSummary: "En palabras sencillas", secContext: "Dónde se ubica",
     ctxBook: "En el libro", ctxOccasion: "Ocasión",
     secTerms: "Detrás de la traducción", termsNote: "según Strong",
@@ -1364,7 +1382,12 @@ function applyLanguage(){
 
   const intro = $("#intro");
   if(intro) intro.innerHTML =
-    `<h2>${esc(t.introH)}</h2><p>${esc(t.introP1)}</p><p>${esc(t.introP2)}</p>`;
+    `<h2>${esc(t.introH)}</h2>
+     <p>${esc(t.introP1)}</p>
+     <p>${esc(t.introP2)}</p>
+     <p>${esc(t.introP3)}</p>
+     <blockquote class="introverse">${esc(t.introVerse)}
+       <cite>${esc(t.introVerseRef)}</cite></blockquote>`;
   loadStatus();
   offerResume();
   fetch("/api/usage").then(r => r.json()).then(u => {
