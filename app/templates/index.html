@@ -374,7 +374,18 @@ button.go:disabled{background:var(--edge);color:var(--muted);cursor:wait}
   font-family:"IBM Plex Mono",monospace;font-size:9.5px;color:var(--muted);
   vertical-align:.55em;margin-right:7px;direction:ltr;display:inline-block;
 }
-.ow{cursor:help;border-radius:3px;padding:0 1px;transition:all .15s}
+.ow{cursor:help;border-radius:3px;padding:0 2px;transition:all .15s;
+  display:inline-block;position:relative}
+.ow-n{
+  font-family:"IBM Plex Mono",monospace;font-size:8px;color:var(--muted);
+  vertical-align:super;margin-right:2px;user-select:none;direction:ltr;
+  display:inline-block;
+}
+.ow.lit .ow-n{color:var(--gold);opacity:.8}
+.term-at{
+  font-family:"IBM Plex Mono",monospace;font-size:9.5px;color:var(--verdigris);
+  margin-top:8px;letter-spacing:.04em;
+}
 .ow:hover{color:var(--text)}
 .ow.lit{color:var(--gold);border-bottom:1px solid rgba(212,166,74,.45)}
 .ow.focus{background:var(--gold);color:var(--ground);border-bottom-color:transparent}
@@ -2527,12 +2538,16 @@ function originalLine(strongsInPlay){
       const ws = byVerse[vid];
       return `<p class="origline-verse${hebrew ? " rtl" : ""}">
         <span class="origline-ref">${esc(ws[0].ref.split(":").pop())}</span>
-        ${ws.map(w => {
+        ${ws.map((w, i) => {
           const hit = wanted.has(w.strongs);
+          // Number every word. Highlighting alone cannot answer "which one is
+          // it" when a Strong's number appears twice in a verse, and in Hebrew
+          // the right-to-left flow makes counting by eye unreliable.
           return `<span class="ow${hit ? " lit" : ""}"
-            title="${esc(w.translit ? w.translit + " — " : "")}${esc(w.gloss)}${
+            title="${esc(w.ref)} word ${i + 1} — ${esc(w.translit ? w.translit + ": " : "")}${esc(w.gloss)}${
               w.morph ? " · " + esc(w.morph) : ""}"
-            data-s="${esc(w.strongs)}">${esc(w.original)}</span>`;
+            data-s="${esc(w.strongs)}" data-pos="${esc(w.ref)}#${i + 1}"
+            ><span class="ow-n">${i + 1}</span>${esc(w.original)}</span>`;
         }).join(" ")}
       </p>`;
     }).join("")}
@@ -2543,6 +2558,16 @@ function originalLine(strongsInPlay){
 function wireTermHighlight(){
   document.querySelectorAll(".term[data-s]").forEach(card => {
     const s = card.dataset.s;
+    // Label the card with every position the word occupies, so the reader can
+    // find it in the line above rather than hunting for a highlight.
+    const spots = [...document.querySelectorAll(`.ow[data-s="${s}"]`)]
+      .map(w => w.dataset.pos).filter(Boolean);
+    if(spots.length && !card.querySelector(".term-at")){
+      const at = document.createElement("div");
+      at.className = "term-at";
+      at.textContent = spots.map(x => x.replace("#", " · word ")).join("   ");
+      card.appendChild(at);
+    }
     const on = () => document.querySelectorAll(`.ow[data-s="${s}"]`)
       .forEach(w => w.classList.add("focus"));
     const off = () => document.querySelectorAll(`.ow[data-s="${s}"]`)
@@ -2633,12 +2658,25 @@ let LIVE = null;
 // content arrives — the reader should be reading, not watching a checklist.
 function liveStart2(){
   if(LIVE) return;
-  progressStop();
-  const el = $("#prog-time");
-  const elapsed = el ? el.textContent : "";
+  // Do NOT stop the timer here. It used to be cleared and its last value
+  // pasted in as static text, so the clock froze at whatever second the first
+  // section arrived — reading as though the app had stalled at exactly the
+  // moment it started working. Keep it running against the same start time.
   $("#apparatus").innerHTML =
-    `<p class="livehint">${esc(T().stWriting)}${elapsed ? " · " + esc(elapsed) : ""}</p>`;
+    `<p class="livehint"><span id="live-status">${esc(T().stWriting)}</span>
+       · <span id="prog-time">0s</span></p>`;
+  tickLive();
   liveStart();
+}
+
+function tickLive(){
+  const paint = () => {
+    const el = $("#prog-time");
+    if(el) el.textContent = T().stElapsed(Math.round((Date.now() - PROGRESS_T0) / 1000));
+  };
+  paint();
+  clearInterval(PROGRESS_TIMER);
+  PROGRESS_TIMER = setInterval(paint, 1000);
 }
 
 function liveStart(){

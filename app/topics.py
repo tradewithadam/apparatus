@@ -151,22 +151,31 @@ def semantic_verses(con, query: str, translation: str, k: int = 40):
 
 
 def keyword_verses(con, query: str, translation: str, limit: int = 20):
+    """
+    Verses containing ALL the content words of the phrase, not any of them.
+
+    OR was the reason "do animals go to heaven" returned a verse about a
+    donkey: the model proposes search phrases like "beasts of the field", each
+    word gets its own OR clause, and every verse mentioning any animal at all
+    matches. AND makes a phrase behave like a phrase.
+    """
     terms = [t for t in re.findall(r"[A-Za-zÀ-ÿ]{4,}", query)
              if t.lower() not in _KW_STOP][:6]
     if not terms:
         return []
+    joiner = " AND "
     if store.IS_PG:
         return [(r["vid"], 0.5) for r in store.rows(con, """
             SELECT vid FROM verses
             WHERE translation = ?
               AND to_tsvector('english', text) @@ websearch_to_tsquery('english', ?)
             LIMIT ?
-        """, (translation, " OR ".join(terms), limit))]
+        """, (translation, joiner.join(terms), limit))]
     try:
         return [(r["vid"], 0.5) for r in store.rows(con, """
             SELECT vid FROM verses_fts
             WHERE verses_fts MATCH ? AND translation = ? LIMIT ?
-        """, (" OR ".join(terms), translation, limit))]
+        """, (joiner.join(terms), translation, limit))]
     except Exception:
         return []
 
@@ -307,16 +316,27 @@ def build_topic_evidence(con, topic: str, translation: str,
     # with verses that merely share vocabulary -- searching "hell" pulls every
     # mention of darkness in the Psalms. The floor was set by inspecting real
     # results: below it, hits were reliably noise.
-    SEM_FLOOR, SEM_CAP = 0.42, 10
-    scored, sem_pool = {}, {}
+    # A verse earns its place by being found more than one way. One weak
+    # keyword hit is how a passing mention of a donkey ends up in a study
+    # about the afterlife — it contains an animal word and nothing else.
+    # Requiring corroboration costs a little recall and buys a lot of
+    # precision, which is the right trade for a tool people trust.
+    SEM_FLOOR, SEM_CAP, MIN_SIGNALS = 0.52, 8, 2
+    scored, sem_pool, signals = {}, {}, {}
     queries = [query] + [t for t in terms[:8] if t]
     for q in queries:
-        for vid, sc in semantic_verses(con, q, translation, k=18):
+        for vid, sc in semantic_verses(con, q, translation, k=14):
             if sc >= SEM_FLOOR:
                 sem_pool[vid] = max(sem_pool.get(vid, 0), sc)
+                signals[vid] = signals.get(vid, 0) + 1
     for q in queries[:5]:
-        for vid, sc in keyword_verses(con, q, translation, limit=12):
+        for vid, sc in keyword_verses(con, q, translation, limit=10):
             sem_pool[vid] = max(sem_pool.get(vid, 0), sc)
+            signals[vid] = signals.get(vid, 0) + 1
+
+    # Anything the model named is already corroborated by definition.
+    sem_pool = {v: sc for v, sc in sem_pool.items()
+                if signals.get(v, 0) >= MIN_SIGNALS or v in set(proposed)}
     # Very short verses ("Then the second", genealogy fragments) score
     # erratically against any query -- too little text for the vector to mean
     # much. Drop them from semantic results; a named or hub verse still gets in.
