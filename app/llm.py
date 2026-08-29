@@ -16,7 +16,8 @@ _client = None
 
 # Filled in by each generate_* call so the caller can log real token counts
 # rather than guessing from text length.
-LAST_USAGE = {"input_tokens": 0, "output_tokens": 0, "model": None}
+LAST_USAGE = {"input_tokens": 0, "output_tokens": 0,
+              "cache_read": 0, "cache_write": 0, "model": None}
 
 
 def _record(resp, model):
@@ -24,6 +25,8 @@ def _record(resp, model):
     LAST_USAGE.update(
         input_tokens=getattr(u, "input_tokens", 0) or 0,
         output_tokens=getattr(u, "output_tokens", 0) or 0,
+        cache_read=getattr(u, "cache_read_input_tokens", 0) or 0,
+        cache_write=getattr(u, "cache_creation_input_tokens", 0) or 0,
         model=model,
     )
     return dict(LAST_USAGE)
@@ -56,7 +59,14 @@ def generate_study(evidence: dict, ref_label: str, question: str | None,
         resp = client().messages.create(
             model=model,
             max_tokens=max_tokens,
-            system=system_for(lang, lens),
+            # The system prompt and tool schema are identical on every call and
+            # run to a few thousand tokens. Marking them cacheable means
+            # Anthropic charges a cache *read* rather than fresh input for them
+            # — roughly a tenth the price — on every study after the first
+            # within the cache window. The evidence packet still costs full
+            # price, because it genuinely differs each time.
+            system=[{"type": "text", "text": system_for(lang, lens),
+                     "cache_control": {"type": "ephemeral"}}],
             tools=[tool],
             tool_choice={"type": "tool", "name": "emit_study"},
             messages=[{"role": "user",
@@ -91,7 +101,8 @@ def generate_topic(evidence: dict, topic: str,
     try:
         resp = client().messages.create(
             model=model, max_tokens=max_tokens,
-            system=topic_system_for(lang, lens),
+            system=[{"type": "text", "text": topic_system_for(lang, lens),
+                     "cache_control": {"type": "ephemeral"}}],
             tools=[tool],
             tool_choice={"type": "tool", "name": "emit_topic_study"},
             messages=[{"role": "user", "content": build_topic_turn(evidence, topic, lang)}],
@@ -118,7 +129,8 @@ def generate_sermon(evidence: dict, ref_label: str, opts: dict,
     try:
         resp = client().messages.create(
             model=model, max_tokens=max_tokens,
-            system=sermon_system_for(lang, lens),
+            system=[{"type": "text", "text": sermon_system_for(lang, lens),
+                     "cache_control": {"type": "ephemeral"}}],
             tools=[tool],
             tool_choice={"type": "tool", "name": "emit_sermon_workbench"},
             messages=[{"role": "user",
@@ -158,7 +170,14 @@ def stream_study(evidence: dict, ref_label: str, question: str | None,
     try:
         with client().messages.stream(
             model=model, max_tokens=max_tokens,
-            system=system_for(lang, lens),
+            # The system prompt and tool schema are identical on every call and
+            # run to a few thousand tokens. Marking them cacheable means
+            # Anthropic charges a cache *read* rather than fresh input for them
+            # — roughly a tenth the price — on every study after the first
+            # within the cache window. The evidence packet still costs full
+            # price, because it genuinely differs each time.
+            system=[{"type": "text", "text": system_for(lang, lens),
+                     "cache_control": {"type": "ephemeral"}}],
             tools=[tool],
             tool_choice={"type": "tool", "name": "emit_study"},
             messages=[{"role": "user",

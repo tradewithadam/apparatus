@@ -202,6 +202,32 @@ def create_app(config=None):
         lang = (value or "en").lower()[:2]
         return lang if lang in ("en", "es") else "en"
 
+    def cache_question(q: str) -> str:
+        """
+        Normalise a question for the cache key.
+
+        The key used the question verbatim, so "What does justified mean?" and
+        "what does justified mean" were two entries, two model calls, and two
+        near-identical studies. Lowercasing, dropping punctuation and stripping
+        filler words merges the phrasings people actually type without merging
+        questions that genuinely differ — "who wrote this" and "when was this
+        written" still keep their own entries.
+        """
+        import re as _re
+        if not q:
+            return ""
+        t = _re.sub(r"[^\w\s]", " ", q.lower())
+        drop = {"what", "does", "do", "did", "is", "are", "was", "the", "a", "an",
+                "of", "in", "this", "that", "it", "mean", "means", "here",
+                "actually", "really", "please", "can", "you", "tell", "me",
+                "about", "explain", "qué", "que", "es", "el", "la", "los", "las",
+                "significa", "aquí", "esto"}
+        words = [w for w in t.split() if w not in drop]
+        # Sorted, so word order does not create a second entry for the same
+        # question. Two questions with the same content words are the same
+        # question for retrieval purposes.
+        return " ".join(sorted(words))
+
     def _lens(value):
         """Only accept a tradition the loaded corpus actually contains."""
         v = (value or "").strip().lower()[:40]
@@ -732,12 +758,13 @@ def create_app(config=None):
                                                "model": app.config["MODEL"]}
         try:
             store.execute(con, """
-                INSERT INTO usage_log (ts, kind, cached, model,
-                                       input_tokens, output_tokens, user_id)
-                VALUES (?,?,?,?,?,?,?)
+                INSERT INTO usage_log (ts, kind, cached, model, input_tokens,
+                                       output_tokens, user_id, cache_read, cache_write)
+                VALUES (?,?,?,?,?,?,?,?,?)
             """, (int(time.time()), kind, 1 if cached else 0,
                   u.get("model") or app.config["MODEL"],
-                  u.get("input_tokens", 0), u.get("output_tokens", 0), user_id))
+                  u.get("input_tokens", 0), u.get("output_tokens", 0), user_id,
+                  u.get("cache_read", 0), u.get("cache_write", 0)))
         except Exception:
             pass          # accounting must never break a study
 
@@ -794,7 +821,7 @@ def create_app(config=None):
 
                 label = refs.range_label(start, end, lang)
                 key = hashlib.sha256(
-                    f"{start}:{end}:{question}:{lang}:{lens}:{model}".encode()).hexdigest()
+                    f"{start}:{end}:{cache_question(question)}:{lang}:{lens}:{model}".encode()).hexdigest()
 
                 if app.config["CACHE_STUDIES"]:
                     hit = store.rows(con, "SELECT payload FROM studies WHERE cache_key = ?", (key,))
@@ -903,7 +930,7 @@ def create_app(config=None):
             try:
                 t0 = time.time()
                 key = hashlib.sha256(
-                    f"topic:{topic.lower()}:{lang}:{lens}:{model}".encode()).hexdigest()
+                    f"topic:{cache_question(topic)}:{lang}:{lens}:{model}".encode()).hexdigest()
                 if app.config["CACHE_STUDIES"]:
                     hit = store.rows(con, "SELECT payload FROM topics WHERE cache_key = ?", (key,))
                     if hit:
@@ -1139,6 +1166,18 @@ def create_app(config=None):
             out.append(d)
         return jsonify({"users": out, "count": len(out)})
 
+    @app.post("/api/admin/reset/<int:user_id>")
+    def api_admin_reset(user_id):
+        u = current_user()
+        if not u or not u.get("is_admin"):
+            return jsonify({"error": "Not allowed"}), 403
+        try:
+            temp = auth.admin_reset(get_db(), u, user_id)
+        except auth.AuthError as e:
+            return jsonify({"error": str(e)}), 400
+        # Shown once, to the admin, and never stored in readable form.
+        return jsonify({"ok": True, "temporary_password": temp})
+
     @app.get("/api/costs")
     def api_costs():
         """
@@ -1157,10 +1196,12 @@ def create_app(config=None):
         def window(seconds):
             rows = store.rows(con, """
                 SELECT kind, cached, COUNT(*) AS n,
-                       SUM(input_tokens) AS inp, SUM(output_tokens) AS outp
+                       SUM(input_tokens) AS inp, SUM(output_tokens) AS outp,
+                       SUM(COALESCE(cache_read,0)) AS cread,
+                       SUM(COALESCE(cache_write,0)) AS cwrite
                 FROM usage_log WHERE ts > ? GROUP BY kind, cached
             """, (now - seconds,))
-            served = billed = inp = outp = 0
+            served = billed = inp = outp = cread = cwrite = 0
             by_kind = {}
             for r in rows:
                 served += r["n"]
@@ -1169,12 +1210,18 @@ def create_app(config=None):
                     billed += r["n"]
                     inp += r["inp"] or 0
                     outp += r["outp"] or 0
-            cost = inp / 1e6 * in_rate + outp / 1e6 * out_rate
+                    cread += r["cread"] or 0
+                    cwrite += r["cwrite"] or 0
+            # Cache reads bill at roughly a tenth of input; writes at ~1.25x.
+            cost = (inp / 1e6 * in_rate + outp / 1e6 * out_rate
+                    + cread / 1e6 * in_rate * 0.1
+                    + cwrite / 1e6 * in_rate * 1.25)
             return {
                 "served": served, "billed": billed,
                 "cache_hits": served - billed,
                 "cache_hit_rate": round((served - billed) / served, 3) if served else None,
                 "input_tokens": inp, "output_tokens": outp,
+                "prompt_cache_read": cread, "prompt_cache_write": cwrite,
                 "estimated_cost": round(cost, 4),
                 "cost_per_study_served": round(cost / served, 4) if served else None,
                 "by_kind": by_kind,

@@ -259,7 +259,8 @@ def propose_candidates(topic: str, model: str = "claude-haiku-4-5-20251001"):
     try:
         resp = client().messages.create(
             model=model, max_tokens=1600,
-            system=CANDIDATE_SYSTEM,
+            system=[{"type": "text", "text": CANDIDATE_SYSTEM,
+                     "cache_control": {"type": "ephemeral"}}],
             tools=[CANDIDATE_TOOL],
             tool_choice={"type": "tool", "name": "propose_passages"},
             messages=[{"role": "user", "content": f"Topic: {topic}"}],

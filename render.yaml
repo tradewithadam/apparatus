@@ -53,6 +53,8 @@ services:
       - key: VOYAGE_BASE_URL
         value: https://ai.mongodb.com/v1   # Atlas key. Remove if from voyageai.com
       # ── spending guards ──────────────────────────────────────────
+      - key: MAX_COMMENTARY
+        value: "12"            # evidence passages per study; the main cost dial
       - key: GLOBAL_DAILY_CAP
         value: "500"           # hard ceiling on model calls per day
       - key: RATE_PER_HOUR

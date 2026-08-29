@@ -44,9 +44,15 @@ SESSION_DAYS = int(os.environ.get("SESSION_DAYS", "90"))
 INVITE_CODE = os.environ.get("INVITE_CODE", "").strip()
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "").strip().lower()
 
-# Login attempt ceilings. Low enough to make guessing pointless, high enough
-# that a person mistyping their own password three times is not locked out.
-LOGIN_TRIES = 8
+# Two ceilings, deliberately far apart.
+#
+# The per-email limit stops someone guessing one account's password. The per-IP
+# limit stops someone spraying many accounts from one machine. They are not the
+# same problem and should not share a number: a church, a household, or an
+# office all share one address, so a tight IP limit means one person fumbling
+# their own password locks out everyone around them.
+LOGIN_TRIES = 8             # per email address
+LOGIN_TRIES_IP = 40         # per address — many people legitimately share one
 LOGIN_WINDOW = 900          # 15 minutes
 
 
@@ -100,11 +106,11 @@ def register(con, email: str, password: str, name: str = "",
     return get_by_email(con, e)
 
 
-def _too_many_attempts(con, bucket: str) -> bool:
+def _too_many_attempts(con, bucket: str, limit: int) -> bool:
     n = store.one(con, """
         SELECT COUNT(*) FROM login_attempts WHERE bucket = ? AND ts > ?
     """, (bucket, _now() - LOGIN_WINDOW)) or 0
-    return n >= LOGIN_TRIES
+    return n >= limit
 
 
 def _note_attempt(con, bucket: str):
@@ -114,8 +120,8 @@ def _note_attempt(con, bucket: str):
 
 def login(con, email: str, password: str, ip: str = "") -> dict:
     e = normalize_email(email)
-    for bucket in (f"e:{e}", f"i:{ip}"):
-        if _too_many_attempts(con, bucket):
+    for bucket, limit in ((f"e:{e}", LOGIN_TRIES), (f"i:{ip}", LOGIN_TRIES_IP)):
+        if _too_many_attempts(con, bucket, limit):
             raise AuthError("Too many attempts. Wait fifteen minutes and try again.")
 
     rows = store.rows(con, "SELECT * FROM users WHERE email = ?", (e,))
@@ -190,6 +196,57 @@ def change_password(con, user_id: int, current: str, new: str):
     # Every other session is invalidated: a password change usually means the
     # old one is suspect, and leaving other devices signed in defeats the point.
     store.execute(con, "DELETE FROM sessions WHERE user_id = ?", (user_id,))
+
+
+def admin_reset(con, admin: dict, user_id: int) -> str:
+    """
+    Issue a temporary password for another account. Returns it once.
+
+    Deliberately not "set a password an admin chose": generating a random one
+    means the admin never learns a password the user might reuse elsewhere,
+    and it cannot be a guessable pattern like the person's name plus a year.
+    The user changes it after signing in.
+
+    Every session for that account is ended. If someone is locked out because
+    their account was taken, leaving the intruder signed in defeats the reset.
+    """
+    if not admin.get("is_admin"):
+        raise AuthError("Not allowed.")
+    rows = store.rows(con, "SELECT id, email, is_admin FROM users WHERE id = ?", (user_id,))
+    if not rows:
+        raise AuthError("No such account.")
+    target = dict(rows[0])
+
+    # An admin resetting another admin is how one compromised admin account
+    # becomes all of them. Only self-reset is allowed at that level.
+    if target.get("is_admin") and target["id"] != admin["id"]:
+        raise AuthError("You can't reset another admin's password.")
+
+    temp = f"{secrets.choice(WORDS)}-{secrets.choice(WORDS)}-{secrets.randbelow(9000) + 1000}"
+    store.execute(con, "UPDATE users SET password_hash = ? WHERE id = ?",
+                  (generate_password_hash(temp), user_id))
+    store.execute(con, "DELETE FROM sessions WHERE user_id = ?", (user_id,))
+    # Clear the lockout, or the failed attempts that prompted the reset keep
+    # them out for another fifteen minutes and the reset appears not to work.
+    store.execute(con, "DELETE FROM login_attempts WHERE bucket = ?",
+                  (f"e:{target['email']}",))
+    # Their address is unknown here, and it was almost certainly filled by the
+    # same failed attempts. Since the IP ceiling exists to stop spraying across
+    # many accounts rather than to protect one, clearing recent address history
+    # on an explicit admin action is the right trade.
+    store.execute(con, "DELETE FROM login_attempts WHERE bucket LIKE 'i:%' AND ts > ?",
+                  (_now() - LOGIN_WINDOW,))
+    return temp
+
+
+# Readable temporary passwords. Someone is going to read one of these aloud
+# over the phone, so no ambiguous characters and no words that sound alike.
+WORDS = [
+    "anchor", "beacon", "cedar", "canyon", "harbor", "lantern", "meadow",
+    "orchard", "prairie", "quarry", "ridge", "summit", "thicket", "valley",
+    "willow", "amber", "cobalt", "crimson", "indigo", "olive", "saffron",
+    "granite", "marble", "timber", "compass", "kettle", "saddle", "trellis",
+]
 
 
 def prune(con):

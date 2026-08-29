@@ -443,11 +443,27 @@ button.go:disabled{background:var(--edge);color:var(--muted);cursor:wait}
 /* misreadings — editorial correction marks */
 .misread{padding:12px 0;border-bottom:1px solid var(--edge)}
 .misread:last-child{border-bottom:0}.misread:first-child{padding-top:0}
+/* Strikethrough over a whole sentence is close to unreadable — the rule cuts
+   through the x-height of every letter, and the muted colour was fighting it.
+   A red bar and a label say "this is the wrong reading" without damaging the
+   text, and the reader has to be able to read the misreading to recognise it
+   as one. */
 .misread-x{
-  font-family:"EB Garamond",Georgia,serif;font-size:16.5px;color:var(--muted);
-  text-decoration:line-through;text-decoration-color:var(--rubric);
-  text-decoration-thickness:1.5px;margin:0 0 6px;
+  font-family:"EB Garamond",Georgia,serif;font-size:16.5px;
+  color:var(--text-dim);margin:0 0 8px;line-height:1.5;
+  padding-left:13px;border-left:3px solid var(--rubric);
 }
+.misread-x:before{
+  content:"Often heard as";display:block;
+  font-family:"IBM Plex Mono",monospace;font-size:9px;text-transform:uppercase;
+  letter-spacing:.11em;color:var(--rubric);margin-bottom:4px;
+}
+.misread-fix:before{
+  content:"But the text says";display:block;
+  font-family:"IBM Plex Mono",monospace;font-size:9px;text-transform:uppercase;
+  letter-spacing:.11em;color:var(--verdigris);margin-bottom:4px;
+}
+.misread-fix{padding-left:13px;border-left:3px solid var(--verdigris)}
 .misread-fix{font-size:14.5px;line-height:1.6;margin:0;color:var(--text)}
 
 .misuse{
@@ -693,6 +709,19 @@ select:focus{outline:none;border-color:var(--gold)}
 .ut-who small{display:block;color:var(--muted);font-size:11px}
 .ut-n{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--muted)}
 .ut-c{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--verdigris);min-width:52px;text-align:right}
+.ut-reset{
+  background:none;border:1px solid var(--edge);border-radius:5px;color:var(--muted);
+  cursor:pointer;font-size:13px;padding:3px 8px;line-height:1;
+}
+.ut-reset:hover{color:var(--gold);border-color:var(--gold)}
+.ac-temp{font-size:13px;color:var(--verdigris);margin:12px 0 0;line-height:1.6}
+.ac-temp.bad{color:var(--rubric)}
+.ac-temp code{
+  display:block;font-family:"IBM Plex Mono",monospace;font-size:17px;
+  color:var(--gold);background:var(--ground);border:1px solid var(--gold);
+  border-radius:6px;padding:10px 13px;margin-top:8px;letter-spacing:.04em;
+  user-select:all;
+}
 .flagcard h3{font-family:"EB Garamond",Georgia,serif;font-size:20px;margin:0 0 16px;color:var(--rubric)}
 .flagcard label{display:block;margin:12px 0 5px}
 .flagcard select,.flagcard textarea{
@@ -1082,6 +1111,10 @@ const STR = {
     inviteL: "Invite code", haveAccount: "Already have an account?",
     needAccount: "Need an account?", account: "Account",
     yourUsage: "Your studies", adminUsers: "Everyone",
+    resetPw: "Reset password", resetConfirm: (e) => `Reset the password for ${e}?`,
+    resetDone: "Temporary password — give it to them, it's shown once:",
+    changePw: "Change password", currentPw: "Current password",
+    newPw: "New password", pwChanged: "Password changed. Sign in again.",
     signedInAs: (e) => `Signed in as ${e}`,
     authWhy: "Your notes and history are yours. Studies are shared, so they stay fast and cheap.",
     lensLabel: "Read from", lensAny: "No preference",
@@ -1210,6 +1243,10 @@ const STR = {
     inviteL: "Código de invitación", haveAccount: "¿Ya tienes cuenta?",
     needAccount: "¿Necesitas una cuenta?", account: "Cuenta",
     yourUsage: "Tus estudios", adminUsers: "Todos",
+    resetPw: "Restablecer contraseña", resetConfirm: (e) => `¿Restablecer la contraseña de ${e}?`,
+    resetDone: "Contraseña temporal — dásela, solo se muestra una vez:",
+    changePw: "Cambiar contraseña", currentPw: "Contraseña actual",
+    newPw: "Nueva contraseña", pwChanged: "Contraseña cambiada. Inicia sesión otra vez.",
     signedInAs: (e) => `Sesión: ${e}`,
     authWhy: "Tus notas e historial son tuyos. Los estudios se comparten, así son rápidos y económicos.",
     lensLabel: "Leer desde", lensAny: "Sin preferencia",
@@ -1960,7 +1997,7 @@ function renderSermon(d){
   if(s.do_not_preach?.length){
     h += `<section><div class="sec-head"><span class="sec-title">${esc(t.secDontPreach)}</span></div>`;
     h += s.do_not_preach.map(x => `<div class="misuse">
-        <p class="misuse-pop" style="text-decoration:line-through;text-decoration-color:var(--rubric)">${esc(x.claim)}</p>
+        <p class="misuse-pop">${esc(x.claim)}</p>
         <p class="misuse-real">${esc(x.why_not)}${sigs(x.cites)}</p></div>`).join("");
     h += `</section>`;
   }
@@ -2909,8 +2946,15 @@ async function showAccount(){
           <small>${esc(u.email)}</small></span>
         <span class="ut-n">${u.studies} studies · ${u.notes} notes</span>
         <span class="ut-c">$${(u.estimated_cost || 0).toFixed(2)}</span>
+        ${u.id !== ME.id && !u.is_admin
+          ? `<button class="ut-reset" data-id="${u.id}" data-email="${esc(u.email)}"
+               title="${esc(t.resetPw)}">↺</button>` : ""}
       </div>`).join("")}</div>` : ""}
-    <div class="flagrow"><button id="ac-out" class="notesave">${esc(t.signOut)}</button></div>
+    <p id="ac-temp" class="ac-temp"></p>
+    <div class="flagrow">
+      <button id="ac-pw">${esc(t.changePw)}</button>
+      <button id="ac-out" class="notesave">${esc(t.signOut)}</button>
+    </div>
   </div>`;
   document.body.appendChild(m);
   m.addEventListener("click", e => { if(e.target === m) m.remove(); });
@@ -2918,6 +2962,50 @@ async function showAccount(){
     await fetch("/api/auth/logout", {method:"POST"});
     ME = null; m.remove(); loadMe();
   });
+  $("#ac-pw").addEventListener("click", () => { m.remove(); showChangePassword(); });
+
+  m.querySelectorAll(".ut-reset").forEach(btn =>
+    btn.addEventListener("click", async () => {
+      if(!confirm(T().resetConfirm(btn.dataset.email))) return;
+      const r = await fetch(`/api/admin/reset/${btn.dataset.id}`, {method:"POST"});
+      const d = await r.json();
+      const box = $("#ac-temp");
+      if(!r.ok){ box.textContent = d.error; box.classList.add("bad"); return; }
+      // Shown once. There is no way to retrieve it later by design — if it is
+      // lost, reset again.
+      box.classList.remove("bad");
+      box.innerHTML = `${esc(T().resetDone)}<code>${esc(d.temporary_password)}</code>`;
+    }));
+}
+
+function showChangePassword(){
+  const t = T();
+  const m = document.createElement("div");
+  m.className = "flagmodal";
+  m.innerHTML = `<div class="flagcard">
+    <h3>${esc(t.changePw)}</h3>
+    <label>${esc(t.currentPw)}</label><input id="pw-cur" type="password">
+    <label>${esc(t.newPw)}</label><input id="pw-new" type="password">
+    <p id="pw-err" class="auth-err"></p>
+    <div class="flagrow"><button id="pw-go" class="notesave">${esc(t.changePw)}</button></div>
+  </div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click", e => { if(e.target === m) m.remove(); });
+  const go = async () => {
+    const r = await fetch("/api/auth/password", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({current: $("#pw-cur").value, new: $("#pw-new").value})});
+    const d = await r.json();
+    if(!r.ok){ $("#pw-err").textContent = d.error; return; }
+    m.remove(); ME = null; loadMe();
+    const toast = document.createElement("div");
+    toast.className = "toast"; toast.textContent = T().pwChanged;
+    document.body.appendChild(toast); setTimeout(() => toast.remove(), 3000);
+    showAuth("in");
+  };
+  $("#pw-go").addEventListener("click", go);
+  $("#pw-new").addEventListener("keydown", e => { if(e.key === "Enter") go(); });
+  $("#pw-cur").focus();
 }
 
 async function run(){

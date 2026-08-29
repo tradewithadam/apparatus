@@ -11,6 +11,7 @@ Hybrid retrieval, because neither half is sufficient alone:
   - vector search  : passages elsewhere that speak to the same idea (recall)
   - FTS keyword    : catches proper nouns and rare terms embeddings blur away
 """
+import os
 from dataclasses import dataclass, field, asdict
 
 from . import refs, store
@@ -261,6 +262,31 @@ def commentary(con, start: int, end: int, question: str | None,
                 picked.append(dict(r, retrieval="keyword", score=0.5))
                 chosen_ids.add(r["id"])
 
+    # Cap the packet, but pick the survivors for breadth before relevance.
+    #
+    # Twenty-one commentary passages is roughly 9,500 input tokens, which is
+    # most of what a study costs. Ten well-chosen ones produce a study that is
+    # very hard to tell apart. The order matters though: taking the top ten by
+    # score would quietly drop whole traditions, and a disputed section with
+    # only Reformed voices in it is not a disputed section. So one passage per
+    # tradition is seated first, and the remaining slots go to whatever scored
+    # highest regardless of source.
+    max_total = int(os.environ.get("MAX_COMMENTARY", "12"))
+    if len(picked) > max_total:
+        picked.sort(key=lambda r: (-r["score"], r["source_id"]))
+        seated, seen_trad = [], set()
+        for r in picked:
+            t = r.get("tradition") or r["source_id"]
+            if t not in seen_trad:
+                seen_trad.add(t)
+                seated.append(r)
+        for r in picked:
+            if len(seated) >= max_total:
+                break
+            if r not in seated:
+                seated.append(r)
+        picked = seated[:max_total]
+
     out = []
     for r in picked:
         out.append({
@@ -276,9 +302,24 @@ def commentary(con, start: int, end: int, question: str | None,
             "on": refs.range_label(r["start_vid"], r["end_vid"]),
             "retrieval": r["retrieval"],
             "score": round(r["score"], 3),
-            "text": r["text"].strip(),
+            "text": _trim(r["text"].strip()),
         })
     return out
+
+
+def _trim(text: str, limit: int = 1500) -> str:
+    """
+    Cut over-long commentary at a sentence boundary.
+
+    Some 19th-century commentators run for pages on a single verse. The model
+    does not need all of it to state their position, and every extra character
+    is billed on every study that retrieves them.
+    """
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    stop = max(cut.rfind(". "), cut.rfind("? "), cut.rfind("! "))
+    return (cut[:stop + 1] if stop > limit * 0.5 else cut) + " […]"
 
 
 def build_evidence(con, start: int, end: int, question: str | None,

@@ -263,7 +263,8 @@ _ADDED_COLUMNS = {
     "topics":  [("saved", "INTEGER DEFAULT 0")],
     "notes":    [("lang", "TEXT DEFAULT 'en'"), ("user_id", "INTEGER")],
     "feedback": [("user_id", "INTEGER")],
-    "usage_log":[("user_id", "INTEGER")],
+    "usage_log":[("user_id", "INTEGER"), ("cache_read", "INTEGER DEFAULT 0"),
+                 ("cache_write", "INTEGER DEFAULT 0")],
 }
 
 
