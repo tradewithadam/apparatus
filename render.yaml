@@ -22,9 +22,18 @@ services:
     # health check cannot be answered at all, Render times out at 5 seconds
     # and kills a perfectly healthy instance. Threads let each worker serve
     # many connections, so a long stream never blocks a short request.
+    # One worker, many threads. Render reports this instance has about half a
+    # CPU and defaults WEB_CONCURRENCY to 1; running two worker processes on
+    # that means two interpreters competing for the same half core, which is
+    # survivable with one user and noticeably bad with two.
+    #
+    # Threads are the right shape here anyway: almost all of a study's elapsed
+    # time is spent waiting on the Anthropic API, not computing. A thread
+    # waiting on a socket costs nothing, so 16 of them serve far more people
+    # than two processes can.
     startCommand: >-
       gunicorn 'app:create_app()' --bind 0.0.0.0:$PORT
-      --workers 2 --threads 8 --worker-class gthread
+      --workers 1 --threads 16 --worker-class gthread
       --timeout 300 --graceful-timeout 30 --keep-alive 65
     healthCheckPath: /healthz    # cheap by design; /api/status counts millions of rows
     disk:
