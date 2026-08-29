@@ -1258,11 +1258,23 @@ def create_app(config=None):
             "theme_color": "#14161C",
             "orientation": "any",
             "categories": ["education", "books", "lifestyle"],
+            # PNG, not SVG. iOS ignores an SVG home-screen icon entirely and
+            # substitutes a letter it generates from the page title, and
+            # Android's support is inconsistent. The SVG is kept as a bonus
+            # entry for anything that prefers it.
             "icons": [
+                {"src": "/static/icon-192.png", "sizes": "192x192",
+                 "type": "image/png", "purpose": "any"},
+                {"src": "/static/icon-512.png", "sizes": "512x512",
+                 "type": "image/png", "purpose": "any"},
+                # Maskable art is inset, because Android crops these to a
+                # circle or squircle and anything near the edge is lost.
+                {"src": "/static/maskable-192.png", "sizes": "192x192",
+                 "type": "image/png", "purpose": "maskable"},
+                {"src": "/static/maskable-512.png", "sizes": "512x512",
+                 "type": "image/png", "purpose": "maskable"},
                 {"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml",
                  "purpose": "any"},
-                {"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml",
-                 "purpose": "maskable"},
             ],
         })
 

@@ -11,7 +11,11 @@
 <meta name="apple-mobile-web-app-title" content="Ad Fontes">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<link rel="apple-touch-icon" href="/icon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="167x167" href="/static/apple-touch-icon-167.png">
+<link rel="apple-touch-icon" sizes="152x152" href="/static/apple-touch-icon-152.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -822,6 +826,14 @@ select:focus{outline:none;border-color:var(--gold)}
 }
 #prog-time{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--gold)}
 .prog-note{font-size:12.5px;color:var(--muted);font-style:italic}
+.prog-stop{
+  margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:9.5px;
+  letter-spacing:.09em;text-transform:uppercase;background:none;
+  border:1px solid var(--edge);border-radius:12px;color:var(--muted);
+  padding:4px 12px;cursor:pointer;
+}
+.prog-stop:hover{color:var(--rubric);border-color:var(--rubric)}
+.livehint{display:flex;align-items:center;gap:10px}
 
 /* ── live rendering ───────────────────────────────────── */
 .livehint{
@@ -1098,6 +1110,7 @@ const STR = {
     stLocating: (q) => `Finding what scripture says about “${q}”`,
     stElapsed: (s) => `${s}s`,
     stPatience: "Studies take 30–90 seconds. It's working.",
+    stopIt2: "Stop", stopped: "Stopped.",
     workingSub: "lexicon · cross-references · commentators",
     phRef: "Romans 5:1-5", phQ: "What does “justified” actually mean here?",
     introH: "Open the text and see what\u2019s under it",
@@ -1239,6 +1252,7 @@ const STR = {
     stLocating: (q) => `Buscando lo que dice la Escritura sobre “${q}”`,
     stElapsed: (s) => `${s}s`,
     stPatience: "Los estudios tardan 30–90 segundos. Está funcionando.",
+    stopIt2: "Detener", stopped: "Detenido.",
     workingSub: "léxico · referencias cruzadas · comentaristas",
     phRef: "Romanos 5:1-5", phQ: "¿Qué significa realmente “justificados” aquí?",
     introH: "Abre el texto y mira lo que hay debajo",
@@ -1473,6 +1487,7 @@ function applyLanguage(){
 
 function setLanguage(l){
   if(l === LANG) return;
+  cancelRun(true);
   LANG = l;
   localStorage.setItem("adfontes-lang", l);
   // Reset to the intro; a study written in the other language would be stale.
@@ -1699,6 +1714,7 @@ function renderStudy(d){
 // ── mode switching ──────────────────────────────────────────────────
 let MODE = "passage";
 function setMode(m){
+  if(m !== MODE) cancelRun(true);
   MODE = m;
   ["passage","topic","sermon"].forEach(k => {
     $("#mode-" + k).setAttribute("aria-selected", m === k);
@@ -1973,6 +1989,7 @@ async function runTopic(){
     $("#apparatus").innerHTML = `<p class="msg">${esc(e.message)}</p>`;
   }finally{
     $("#go-topic").disabled = false;
+    progressStop();
   }
 }
 
@@ -2246,6 +2263,7 @@ async function runSermon(){
     $("#apparatus").innerHTML = `<p class="msg">${esc(e.message)}</p>`;
   }finally{
     $("#go-sermon").disabled = false;
+    progressStop();
   }
 }
 
@@ -2331,6 +2349,7 @@ function when(ts){
 // Reopening restores the exact stored payload, so a study is never re-run and
 // never re-billed just to look at it again.
 async function openEntry(key){
+  cancelRun(true);
   closeDrawer();
   $("#apparatus").innerHTML = `<p class="msg working">…</p>`;
   try{
@@ -2635,13 +2654,42 @@ async function handleApiError(r, d){
 // A ticking clock runs alongside so a long wait still looks alive.
 let PROGRESS_TIMER = null, PROGRESS_T0 = 0;
 
+// One study at a time. Without this, clicking a second passage while the first
+// is still writing leaves two streams appending to the same element — sections
+// interleave, the timer double-ticks, and whichever finishes last wins. The
+// controller also lets the reader stop a study they no longer want, which ends
+// the server generator on its next yield and stops the tokens with it.
+let INFLIGHT = null;
+
+function cancelRun(quiet){
+  if(INFLIGHT){
+    INFLIGHT.abort();
+    INFLIGHT = null;
+  }
+  progressStop();
+  LIVE = null;
+  ["go", "go-topic", "go-sermon"].forEach(id => {
+    const b = $("#" + id);
+    if(b) b.disabled = false;
+  });
+  // Clear the panel either way. A quiet cancel used to leave the old progress
+  // rows and a dead timer on screen while the new run started elsewhere, which
+  // read as two things happening at once.
+  const box = $("#apparatus");
+  if(box && (box.querySelector(".progress") || box.querySelector("#live"))){
+    box.innerHTML = quiet ? "" : `<p class="msg">${esc(T().stopped)}</p>`;
+  }
+}
+
 function progressStart(){
   PROGRESS_T0 = Date.now();
   $("#apparatus").innerHTML = `<div class="progress" id="prog">
       <div class="prog-rows" id="prog-rows"></div>
       <div class="prog-foot"><span id="prog-time">0s</span>
-        <span class="prog-note">${esc(T().stPatience)}</span></div>
+        <span class="prog-note">${esc(T().stPatience)}</span>
+        <button class="prog-stop" id="prog-stop">${esc(T().stopIt2)}</button></div>
     </div>`;
+  $("#prog-stop")?.addEventListener("click", () => cancelRun());
   clearInterval(PROGRESS_TIMER);
   PROGRESS_TIMER = setInterval(() => {
     const el = $("#prog-time");
@@ -2679,13 +2727,20 @@ function progressStage(ev){
 // is unavailable (some proxies buffer it into uselessness), so the feature can
 // never be the reason a study fails.
 async function runStreaming(url, body, onDone){
+  cancelRun(true);              // whatever was running is now abandoned
   LIVE = null;
+  const ctl = new AbortController();
+  INFLIGHT = ctl;
   progressStart();
   let res;
   try{
-    res = await fetch(url, {method:"POST",
+    res = await fetch(url, {method:"POST", signal: ctl.signal,
       headers:{"Content-Type":"application/json"}, body: JSON.stringify(body)});
-  }catch(e){ progressStop(); throw e; }
+  }catch(e){
+    progressStop();
+    if(e.name === "AbortError") return null;
+    throw e;
+  }
 
   if(!res.ok || !res.body || !(res.headers.get("content-type") || "").includes("event-stream")){
     progressStop();
@@ -2698,7 +2753,15 @@ async function runStreaming(url, body, onDone){
   const dec = new TextDecoder();
   let buf = "", payload = null, err = null;
   while(true){
-    const {done, value} = await reader.read();
+    let done, value;
+    try{
+      ({done, value} = await reader.read());
+    }catch(e){
+      // Aborted mid-stream. Not an error to report — the reader asked for it.
+      if(e.name === "AbortError" || ctl.signal.aborted) return null;
+      throw e;
+    }
+    if(ctl.signal.aborted) return null;
     if(done) break;
     buf += dec.decode(value, {stream:true});
     const parts = buf.split("\n\n");
@@ -2716,6 +2779,7 @@ async function runStreaming(url, body, onDone){
   }
   progressStop();
   LIVE = null;
+  if(INFLIGHT === ctl) INFLIGHT = null;
   if(err) throw new Error(err);
   return payload;
 }
@@ -2869,7 +2933,9 @@ function liveStart2(){
   // moment it started working. Keep it running against the same start time.
   $("#apparatus").innerHTML =
     `<p class="livehint"><span id="live-status">${esc(T().stWriting)}</span>
-       · <span id="prog-time">0s</span></p>`;
+       · <span id="prog-time">0s</span>
+       <button class="prog-stop" id="prog-stop">${esc(T().stopIt2)}</button></p>`;
+  $("#prog-stop")?.addEventListener("click", () => cancelRun());
   tickLive();
   liveStart();
 }
@@ -3135,6 +3201,7 @@ async function run(){
     $("#apparatus").innerHTML = `<p class="msg">${esc(e.message)}</p>`;
   }finally{
     $("#go").disabled = false;
+    progressStop();
   }
 }
 

@@ -18,3 +18,8 @@ STEPBible-Data/
 # Packaged database for deploy (hundreds of MB)
 *.gz
 *.sqlite
+
+# The icon PNGs in app/static ARE committed — they are small, and generating
+# them at deploy time would mean carrying an image library into production
+# for nine files that never change.
+!app/static/*.png
