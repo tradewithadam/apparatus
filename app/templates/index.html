@@ -861,6 +861,36 @@ select:focus{outline:none;border-color:var(--gold)}
 .empty p:last-child{margin-bottom:0}
 /* The verse the whole thing is named after. Set quietly — it is a reason, not
    a slogan, and it should read as an epigraph rather than a banner. */
+.ways{margin:22px 0 0;padding-top:18px;border-top:1px solid var(--edge)}
+.ways-h{
+  font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--gold);margin-bottom:12px;
+}
+.way{
+  display:block;width:100%;text-align:left;background:var(--raised2);
+  border:1px solid var(--edge);border-radius:8px;padding:12px 15px;
+  margin-bottom:8px;cursor:pointer;color:var(--text);
+  font-family:"IBM Plex Sans",system-ui,sans-serif;
+}
+.way:hover{border-color:var(--gold)}
+.way-n{
+  display:block;font-family:"EB Garamond",Georgia,serif;font-size:17px;
+  font-weight:600;color:var(--gold);margin-bottom:3px;
+}
+.way-d{display:block;font-size:13.5px;line-height:1.5;color:var(--text-dim)}
+.trythis{
+  display:block;width:100%;text-align:left;margin-top:16px;cursor:pointer;
+  background:var(--raised2);border:1px solid var(--rubric);border-radius:8px;
+  padding:13px 16px;color:var(--text);
+  font-family:"IBM Plex Sans",system-ui,sans-serif;
+}
+.trythis:hover{background:var(--rubric);color:var(--ground)}
+.trythis:hover .try-n,.trythis:hover .try-d{color:var(--ground)}
+.try-n{
+  display:block;font-family:"IBM Plex Mono",monospace;font-size:9.5px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--rubric);margin-bottom:5px;
+}
+.try-d{display:block;font-size:14px;line-height:1.5;color:var(--text-dim)}
 .introverse{
   margin:20px 0 0;padding:16px 0 0;border-top:1px solid var(--edge);
   font-family:"EB Garamond",Georgia,serif;font-size:16.5px;line-height:1.6;
@@ -1074,6 +1104,12 @@ const STR = {
     introP1: "The Hebrew or Greek behind the English, word by word. What the passage meant to the people who first heard it. How the church has read it across two thousand years \u2014 Chrysostom in the fourth century, Calvin and Wesley and Matthew Henry, ten traditions in all.",
     introP2: "Where Christians agree, you\u2019ll see it said plainly. Where faithful people have differed \u2014 and on some passages they have, for centuries \u2014 you\u2019ll see each side put at its strongest, and you\u2019ll be pointed to your pastor rather than handed a verdict.",
     introP3: "Every claim names the source it came from. Anything that can\u2019t be traced to one never reaches you.",
+    waysIn: "Three ways in",
+    wayPassage: "Passage", wayPassageD: "Open a chapter or a few verses and study it. Start here.",
+    wayTopic: "Topic", wayTopicD: "Ask what scripture says about something \u2014 hell, anxiety, divorce \u2014 and see the passages that actually bear on it.",
+    wayPreach: "Preach", wayPreachD: "Build an outline to teach from. It won\u2019t write your sermon; it gives you the text, the structure, and the calls you\u2019ll have to make.",
+    tryThis: "Try this first",
+    tryThisD: "Jeremiah 29:11 is the verse most often taken out of context. Watch what it does with that one.",
     introVerse: "\u201cThey received the word with all readiness, and searched the Scriptures daily to see whether those things were so.\u201d",
     introVerseRef: "Acts 17:11",
     secSummary: "In plain words", secContext: "Where this sits",
@@ -1209,6 +1245,12 @@ const STR = {
     introP1: "El hebreo o el griego detr\u00e1s del espa\u00f1ol, palabra por palabra. Lo que el pasaje signific\u00f3 para quienes lo escucharon primero. C\u00f3mo lo ha le\u00eddo la iglesia durante dos mil a\u00f1os \u2014 Cris\u00f3stomo en el siglo cuarto, Calvino, Wesley y Matthew Henry: diez tradiciones en total.",
     introP2: "Donde los cristianos coinciden, lo ver\u00e1s dicho con claridad. Donde han diferido \u2014 y en algunos pasajes lo han hecho por siglos \u2014 ver\u00e1s cada postura en su mejor forma, y se te remitir\u00e1 a tu pastor en lugar de darte un veredicto.",
     introP3: "Cada afirmaci\u00f3n nombra la fuente de donde viene. Lo que no se puede rastrear nunca llega a ti.",
+    waysIn: "Tres maneras de empezar",
+    wayPassage: "Pasaje", wayPassageD: "Abre un cap\u00edtulo o unos vers\u00edculos y est\u00fadialos. Empieza aqu\u00ed.",
+    wayTopic: "Tema", wayTopicD: "Pregunta qu\u00e9 dice la Escritura sobre algo \u2014 el infierno, la ansiedad, el divorcio \u2014 y ve los pasajes que realmente tratan del asunto.",
+    wayPreach: "Predicar", wayPreachD: "Arma un bosquejo para ense\u00f1ar. No escribe tu serm\u00f3n; te da el texto, la estructura y las decisiones que tendr\u00e1s que tomar.",
+    tryThis: "Prueba esto primero",
+    tryThisD: "Jerem\u00edas 29:11 es el vers\u00edculo que m\u00e1s se saca de contexto. Mira lo que hace con ese.",
     introVerse: "\u201cRecibieron la palabra con toda solicitud, escudri\u00f1ando cada d\u00eda las Escrituras para ver si estas cosas eran as\u00ed.\u201d",
     introVerseRef: "Hechos 17:11",
     secSummary: "En palabras sencillas", secContext: "Dónde se ubica",
@@ -1381,13 +1423,47 @@ function applyLanguage(){
   loadBooks();
 
   const intro = $("#intro");
-  if(intro) intro.innerHTML =
-    `<h2>${esc(t.introH)}</h2>
-     <p>${esc(t.introP1)}</p>
-     <p>${esc(t.introP2)}</p>
-     <p>${esc(t.introP3)}</p>
-     <blockquote class="introverse">${esc(t.introVerse)}
-       <cite>${esc(t.introVerseRef)}</cite></blockquote>`;
+  if(intro){
+    intro.innerHTML =
+      `<h2>${esc(t.introH)}</h2>
+       <p>${esc(t.introP1)}</p>
+       <p>${esc(t.introP2)}</p>
+       <p>${esc(t.introP3)}</p>
+
+       <div class="ways"><div class="ways-h">${esc(t.waysIn)}</div>
+         ${[["passage", t.wayPassage, t.wayPassageD],
+            ["topic",   t.wayTopic,   t.wayTopicD],
+            ["sermon",  t.wayPreach,  t.wayPreachD]].map(([m, name, desc]) =>
+           `<button class="way" data-mode="${m}">
+              <span class="way-n">${esc(name)}</span>
+              <span class="way-d">${esc(desc)}</span></button>`).join("")}
+       </div>
+
+       <button class="trythis" id="try-first">
+         <span class="try-n">${esc(t.tryThis)}</span>
+         <span class="try-d">${esc(t.tryThisD)}</span></button>
+
+       <blockquote class="introverse">${esc(t.introVerse)}
+         <cite>${esc(t.introVerseRef)}</cite></blockquote>`;
+
+    intro.querySelectorAll(".way").forEach(b =>
+      b.addEventListener("click", () => {
+        setMode(b.dataset.mode);
+        // Scroll the relevant input into view rather than just switching the
+        // tab — on a phone the form is above the fold and the change is easy
+        // to miss entirely.
+        const field = {passage:"#ref", topic:"#topic", sermon:"#s-ref"}[b.dataset.mode];
+        const el = $(field);
+        if(el){ el.scrollIntoView({block:"center", behavior:"smooth"}); el.focus(); }
+      }));
+
+    $("#try-first")?.addEventListener("click", () => {
+      setMode("passage");
+      $("#ref").value = T().examples[0].ref;
+      $("#q").value = T().examples[0].q;
+      syncPickerLabel(); run();
+    });
+  }
   loadStatus();
   offerResume();
   fetch("/api/usage").then(r => r.json()).then(u => {
