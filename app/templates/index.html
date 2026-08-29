@@ -997,7 +997,9 @@ const STR = {
     introP2: "Claims that can’t be traced to a retrieved source are removed before you see them, and the count is published at the bottom of every study.",
     secSummary: "In plain words", secContext: "Where this sits",
     ctxBook: "In the book", ctxOccasion: "Occasion",
-    secTerms: "Behind the English", termsNote: "from Strong’s",
+    secTerms: "Behind the translation", termsNote: "from Strong’s",
+    inTheGreek: "In the Greek", inTheHebrew: "In the Hebrew",
+    tapToTrace: "The words discussed below are highlighted",
     secSettled: "Broadly agreed", settledNote: "bar length = how directly the text says it",
     secDisputed: "Faithfully disputed", disputedNote: "not resolved here, on purpose",
     disputeFoot: "Christians who love scripture land in different places here. This is a good thing to ask a pastor about.",
@@ -2732,6 +2734,15 @@ function liveItem(key, item){
         <small>${T().cert[item.certainty]||""}</small></span>
       <span class="claim-body">${esc(item.claim)}${sigs(item.cites)}</span></div>`;
   } else if(key === "key_terms"){
+    // The original-language line belongs above the first term card. Built once
+    // per section, then extended as later terms arrive — the streamed path
+    // previously rendered bare cards with no sentence to place them in.
+    if(!body.querySelector(".origline")){
+      body.insertAdjacentHTML("afterbegin", originalLine([item.strongs]));
+    } else {
+      const w = body.querySelectorAll(`.ow[data-s="${item.strongs}"]`);
+      w.forEach(x => x.classList.add("lit"));
+    }
     html = `<div class="term" data-s="${esc(item.strongs||"")}"><div class="term-top">
       ${item.original ? `<span class="term-orig">${esc(item.original)}</span>` : ""}
       ${item.translit ? `<span class="term-tr">${esc(item.translit)}</span>` : ""}
@@ -2752,6 +2763,7 @@ function liveItem(key, item){
       <p class="misread-fix">${esc(item.correction)}${sigs(item.cites)}</p></div>`;
   }
   body.insertAdjacentHTML("beforeend", html);
+  if(key === "key_terms") wireTermHighlight();
 }
 
 async function run(){
