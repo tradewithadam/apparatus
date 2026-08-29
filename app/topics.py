@@ -425,15 +425,15 @@ def build_topic_evidence(con, topic: str, translation: str,
                        if t in hay or t[:max(4, len(t) - 2)] in hay)
             return hits
 
-        # Same "does this word carry the verse" measure as a passage study,
-        # then tilted toward the thing that was asked. A topic search should
-        # not offer a word simply because it is unusual, nor a word that is
-        # on-topic but grammatically trivial.
-        from .retrieval import worth_explaining
         for w in words:
-            w["weight"] = round(worth_explaining(w) + 0.5 * min(relevance(w), 2), 4)
-        words.sort(key=lambda w: -w["weight"])
-        words = [w for w in words if w["weight"] > 0][:20] or words[:20]
+            w["_rel"] = relevance(w)
+        # Rarity still breaks ties, so among equally on-topic words the
+        # distinctive one wins — which is the useful half of the old rule.
+        words.sort(key=lambda w: (-w["_rel"], w["corpus_freq"]))
+        related = [w for w in words if w["_rel"] > 0]
+        words = (related or words)[:20]
+        for w in words:
+            w.pop("_rel", None)
 
     # Commentary bearing on any retrieved verse.
     commentary = []

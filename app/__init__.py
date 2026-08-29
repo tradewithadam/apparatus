@@ -94,6 +94,10 @@ def _bootstrap_db(path):
                 os.remove(leftover)
 
 
+# Changes whenever the process restarts, which is whenever a deploy lands.
+BUILD_ID = str(int(time.time()))
+
+
 def create_app(config=None):
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_mapping(
@@ -143,7 +147,20 @@ def create_app(config=None):
 
     @app.get("/")
     def index():
-        return render_template("index.html")
+        """
+        Never cached.
+
+        The whole client is this one file, so a stale copy is not a stale
+        stylesheet — it is old JavaScript talking to a new server. When the
+        server started sending topic sections, browsers holding yesterday's
+        page rendered raw key names into empty boxes, which looks like the
+        deploy broke rather than that the page never arrived.
+        """
+        resp = app.make_response(render_template("index.html"))
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        resp.headers["Pragma"] = "no-cache"
+        resp.headers["Expires"] = "0"
+        return resp
 
     def current_user():
         """Resolve the signed-in user once per request."""
@@ -1429,6 +1446,11 @@ def create_app(config=None):
         js = ("self.addEventListener('install', () => self.skipWaiting());\n"
               "self.addEventListener('activate', e => e.waitUntil(clients.claim()));\n")
         return app.response_class(js, mimetype="application/javascript")
+
+    @app.get("/api/version")
+    def api_version():
+        """Lets the page notice it is older than the server and reload itself."""
+        return jsonify({"build": BUILD_ID})
 
     @app.get("/healthz")
     def healthz():

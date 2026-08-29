@@ -2543,18 +2543,78 @@ function openFlag(){
 // a job site — set it playing before you pull out, not while moving.
 let SPEAKING = false;
 
+// Build what the voice should actually say.
+//
+// Reading the rendered text verbatim meant announcing every citation tag —
+// "B S B colon Rom dot five dot one" — plus section headers and grounding
+// counts. Those are visual scaffolding; a listener wants the passage and the
+// prose, and nothing else.
 function speechText(){
   const parts = [];
+  const clean = el => {
+    const copy = el.cloneNode(true);
+    // Citation chips, position markers, word numbers, section labels and the
+    // toolbar all exist to be looked at, not heard.
+    copy.querySelectorAll(".sig, .ow-n, .term-at, .kp-w, .hubtag, .toolbar, " +
+                          ".secnav, .groundbadge, .integrity, .prog-stop, " +
+                          ".exportbar, .vnum, .passage-trans, .iltoggle, " +
+                          ".origline, .pos-texts, .sec-note, .sec-head, " +
+                          ".cert, .prog-foot, .livehint")
+        .forEach(n => n.remove());
+    // Verses are separate paragraphs on screen; without an explicit break the
+    // reader runs "Jesus Christ,through whom" together as one breath.
+    copy.querySelectorAll("p, div, li").forEach(n => {
+      if(n.textContent.trim()) n.insertAdjacentText("beforeend", " ");
+    });
+    return copy.innerText
+      // "Romans 5:1-5" should be spoken, not spelled with punctuation.
+      .replace(/(\d+):(\d+)/g, "$1 verse $2")
+      .replace(/\s*[·—–]\s*/g, ". ")
+      .replace(/\bBSB\b/g, "")
+      .replace(/\s{2,}/g, " ")
+      .replace(/\n{2,}/g, "\n")
+      .trim();
+  };
+
   const p = $("#passage");
-  if(p) parts.push(p.innerText);
+  if(p) parts.push(clean(p));
+
   const a = $("#apparatus");
   if(a){
     a.querySelectorAll(":scope > section").forEach(s => {
       if(s.classList.contains("integrity") || s.classList.contains("notes")) return;
-      parts.push(s.innerText);
+      const title = s.querySelector(".sec-title");
+      const body = clean(s);
+      if(!body) return;
+      // Say the heading as a sentence so sections do not run together.
+      parts.push(title ? `${title.textContent.trim()}. ${body}` : body);
     });
   }
-  return parts.join(". ").replace(/\s+/g, " ").slice(0, 30000);
+  return parts.join("\n\n").slice(0, 30000);
+}
+
+// Pick the best voice the device actually has.
+//
+// The default is usually the oldest formant synthesiser installed. Modern
+// phones and laptops ship neural voices — Siri on iOS, Microsoft Natural on
+// Windows, Google on Android — and they are free and already there. Choosing
+// one deliberately is the difference between a robot and something listenable,
+// at no cost.
+const GOOD_VOICES = [
+  /natural/i, /neural/i, /siri/i, /premium/i, /enhanced/i,
+  /google (uk|us)/i, /samantha/i, /aaron/i, /daniel/i,
+];
+
+function pickVoice(lang){
+  const want = lang === "es" ? "es" : "en";
+  const all = speechSynthesis.getVoices().filter(v => v.lang.toLowerCase().startsWith(want));
+  if(!all.length) return null;
+  for(const pattern of GOOD_VOICES){
+    const hit = all.find(v => pattern.test(v.name));
+    if(hit) return hit;
+  }
+  // Local voices beat remote ones: no network, no cutting out mid-sentence.
+  return all.find(v => v.localService) || all[0];
 }
 
 function toggleSpeech(){
@@ -2566,14 +2626,48 @@ function toggleSpeech(){
     if(btn) btn.textContent = t.listenIt;
     return;
   }
-  const u = new SpeechSynthesisUtterance(speechText());
-  u.lang = LANG === "es" ? "es-ES" : "en-US";
-  u.rate = 0.95;
-  u.onend = () => { SPEAKING = false; const b = $("#btn-listen"); if(b) b.textContent = T().listenIt; };
+  const text = speechText();
+  if(!text) return;
+
+  // Long text gets cut off by most engines, and a single utterance cannot be
+  // paused cleanly. Splitting on sentence boundaries also gives the voice
+  // somewhere natural to breathe.
+  const chunks = text.match(/[^.!?\n]+[.!?\n]*/g) || [text];
+  const batched = [];
+  let acc = "";
+  for(const c of chunks){
+    if((acc + c).length > 220){ batched.push(acc); acc = c; }
+    else acc += c;
+  }
+  if(acc.trim()) batched.push(acc);
+
+  const voice = pickVoice(LANG);
+  let i = 0;
+  const speakNext = () => {
+    if(i >= batched.length || !SPEAKING){
+      SPEAKING = false;
+      const b = $("#btn-listen"); if(b) b.textContent = T().listenIt;
+      return;
+    }
+    const u = new SpeechSynthesisUtterance(batched[i++]);
+    if(voice) u.voice = voice;
+    u.lang = voice ? voice.lang : (LANG === "es" ? "es-ES" : "en-US");
+    u.rate = 0.95; u.pitch = 1.0;
+    u.onend = speakNext;
+    u.onerror = speakNext;
+    speechSynthesis.speak(u);
+  };
   speechSynthesis.cancel();
-  speechSynthesis.speak(u);
   SPEAKING = true;
+  speakNext();
   if(btn) btn.textContent = t.stopIt;
+}
+
+// Voices load asynchronously on most browsers; without this the first press
+// gets whatever default was available before the real list arrived.
+if("speechSynthesis" in window){
+  speechSynthesis.onvoiceschanged = () => {};
+  speechSynthesis.getVoices();
 }
 
 // ── resume ──────────────────────────────────────────────────────────
@@ -3075,6 +3169,25 @@ function liveItem(key, item){
   if(key === "key_terms") wireTermHighlight();
 }
 
+
+// ── stale page detection ────────────────────────────────────────────
+// A deploy changes the server but not the tab someone already has open.
+// Old JavaScript against a new API produces confusing half-broken output
+// rather than an error, so the page checks whether it is out of date and
+// reloads itself once.
+let BUILD = null;
+async function checkBuild(){
+  try{
+    const b = (await (await fetch("/api/version", {cache:"no-store"})).json()).build;
+    if(BUILD && b && b !== BUILD){
+      location.reload();
+      return;
+    }
+    BUILD = b;
+  }catch{}
+}
+setInterval(checkBuild, 60000);
+checkBuild();
 
 // ── accounts ────────────────────────────────────────────────────────
 let ME = null, AUTH_MODE = "in";
