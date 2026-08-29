@@ -739,6 +739,28 @@ def create_app(config=None):
         """
         return store.connect()
 
+    def guarded(gen, label):
+        """
+        Make sure a stream always ends with either `done` or `error`.
+
+        A generator that raises anything other than the errors we anticipated
+        simply closes the connection. The browser sees a stream that stopped
+        mid-way, with no completion and no failure, and leaves the progress
+        panel on screen forever — which looks exactly like the model taking a
+        very long time. Catching everything here turns a silent hang into a
+        message that says what went wrong.
+        """
+        try:
+            for chunk in gen:
+                yield chunk
+        except GeneratorExit:
+            raise
+        except Exception as e:
+            app.logger.exception("stream failed: %s", label)
+            yield sse({"stage": "error",
+                       "error": f"Something failed while building this. {type(e).__name__}: "
+                                f"{str(e)[:200]}"})
+
     def stream(generator):
         return Response(
             stream_with_context(generator),
@@ -904,7 +926,7 @@ def create_app(config=None):
             finally:
                 store.release(con)
 
-        return stream(steps())
+        return stream(guarded(steps(), request.path))
 
     @app.post("/api/topic/stream")
     def api_topic_stream():
@@ -981,7 +1003,7 @@ def create_app(config=None):
             finally:
                 store.release(con)
 
-        return stream(steps())
+        return stream(guarded(steps(), request.path))
 
     @app.post("/api/sermon/stream")
     def api_sermon_stream():
@@ -1070,7 +1092,7 @@ def create_app(config=None):
             finally:
                 store.release(con)
 
-        return stream(steps())
+        return stream(guarded(steps(), request.path))
 
     def _session_cookie(resp, token):
         resp.set_cookie(auth.SESSION_COOKIE, token,

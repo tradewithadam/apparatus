@@ -1111,6 +1111,7 @@ const STR = {
     stElapsed: (s) => `${s}s`,
     stPatience: "Studies take 30–90 seconds. It's working.",
     stopIt2: "Stop", stopped: "Stopped.",
+    lostIt: "The connection dropped before this finished. Nothing was charged for the part that didn\u2019t arrive \u2014 try again.",
     workingSub: "lexicon · cross-references · commentators",
     phRef: "Romans 5:1-5", phQ: "What does “justified” actually mean here?",
     introH: "Open the text and see what\u2019s under it",
@@ -1253,6 +1254,7 @@ const STR = {
     stElapsed: (s) => `${s}s`,
     stPatience: "Los estudios tardan 30–90 segundos. Está funcionando.",
     stopIt2: "Detener", stopped: "Detenido.",
+    lostIt: "La conexi\u00f3n se cort\u00f3 antes de terminar. Int\u00e9ntalo de nuevo.",
     workingSub: "léxico · referencias cruzadas · comentaristas",
     phRef: "Romanos 5:1-5", phQ: "¿Qué significa realmente “justificados” aquí?",
     introH: "Abre el texto y mira lo que hay debajo",
@@ -2781,6 +2783,10 @@ async function runStreaming(url, body, onDone){
   LIVE = null;
   if(INFLIGHT === ctl) INFLIGHT = null;
   if(err) throw new Error(err);
+  // A stream that ends without `done` or `error` means the server stopped
+  // talking mid-sentence. Saying so beats leaving the progress rows up
+  // indefinitely, which reads as "still working" when nothing is.
+  if(!payload && !ctl.signal.aborted) throw new Error(T().lostIt);
   return payload;
 }
 

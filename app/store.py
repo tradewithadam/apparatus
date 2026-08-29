@@ -43,6 +43,14 @@ def connect():
     con = sqlite3.connect(path, check_same_thread=False, timeout=20)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA busy_timeout = 20000")
+    # VACUUM INTO, which prepare_deploy uses, writes a database in rollback
+    # journal mode regardless of the source. Setting WAL here means concurrent
+    # readers are never blocked by a writer, which matters once more than one
+    # person is studying at the same time.
+    try:
+        con.execute("PRAGMA journal_mode = WAL")
+    except Exception:
+        pass
     # Accounts, notes and history live in their own file so replacing the
     # corpus cannot take them with it. Attached here, so every query that says
     # "notes" or "users" keeps working without knowing where it lives.

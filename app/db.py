@@ -333,6 +333,14 @@ def split_existing(con, user_path: str):
     says so; a duplicated table is recoverable, a dropped one is not.
     """
     import sys
+    # Gunicorn boots several workers at once and every one of them calls this.
+    # Two processes copying and dropping the same tables can duplicate rows or
+    # fail halfway. BEGIN IMMEDIATE takes the write lock up front, so the first
+    # worker does the work and the rest find nothing left to do.
+    try:
+        con.execute("BEGIN IMMEDIATE")
+    except Exception:
+        return
     moved = []
     for t in USER_TABLES:
         try:
@@ -366,11 +374,11 @@ def split_existing(con, user_path: str):
                 print(f"[split] {t}: copied {check} of {n_main}; leaving both in place",
                       file=sys.stderr)
                 con.rollback()
-                continue
+                return
         con.execute(f"DROP TABLE main.{t}")
         moved.append(f"{t}({n_main})")
+    con.commit()
     if moved:
-        con.commit()
         print(f"[split] moved to {user_path}: {', '.join(moved)}", flush=True)
 
 
