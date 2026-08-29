@@ -12,7 +12,16 @@ services:
     region: ohio
     branch: main
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn 'app:create_app()' --bind 0.0.0.0:$PORT --workers 2 --timeout 180
+    # --threads matters more than --workers here. A sync worker handles one
+    # request start to finish, and a streaming study holds one for 60-90
+    # seconds. With 2 sync workers, two concurrent studies occupy both, the
+    # health check cannot be answered at all, Render times out at 5 seconds
+    # and kills a perfectly healthy instance. Threads let each worker serve
+    # many connections, so a long stream never blocks a short request.
+    startCommand: >-
+      gunicorn 'app:create_app()' --bind 0.0.0.0:$PORT
+      --workers 2 --threads 8 --worker-class gthread
+      --timeout 300 --graceful-timeout 30 --keep-alive 65
     healthCheckPath: /healthz    # cheap by design; /api/status counts millions of rows
     disk:
       name: apparatus-data

@@ -252,7 +252,7 @@ def close_db(_=None):
 def connect(path: str) -> sqlite3.Connection:
     """Standalone connection for ingest scripts, outside the Flask app context."""
     Path(path).parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(path)
+    con = sqlite3.connect(path, check_same_thread=False, timeout=20)
     con.row_factory = sqlite3.Row
     con.executescript(SCHEMA)
     # Ingest writes a lot; these make it bearable.

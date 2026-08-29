@@ -33,8 +33,15 @@ def connect():
     if IS_PG:
         return _pg_pool().getconn()
     import sqlite3
-    con = sqlite3.connect(os.environ.get("DB_PATH", "data/apparatus.db"))
+    # check_same_thread=False because gunicorn now runs threaded workers, and a
+    # streaming response is created in one thread and iterated in another. Each
+    # request and each stream opens its own connection and closes it — nothing
+    # is shared concurrently — so the check is protecting against a situation
+    # that cannot arise here, while breaking one that does.
+    con = sqlite3.connect(os.environ.get("DB_PATH", "data/apparatus.db"),
+                          check_same_thread=False, timeout=20)
     con.row_factory = sqlite3.Row
+    con.execute("PRAGMA busy_timeout = 20000")
     return con
 
 
