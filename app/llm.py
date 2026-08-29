@@ -16,8 +16,32 @@ _client = None
 
 # Filled in by each generate_* call so the caller can log real token counts
 # rather than guessing from text length.
-LAST_USAGE = {"input_tokens": 0, "output_tokens": 0,
-              "cache_read": 0, "cache_write": 0, "model": None}
+# Per-thread, not global. With several people studying at once a single shared
+# dict means whoever finishes last overwrites everyone's token counts, and the
+# usage table attributes one person's spend to another.
+import threading as _threading
+_local = _threading.local()
+
+
+def _usage() -> dict:
+    if not hasattr(_local, "usage"):
+        _local.usage = {"input_tokens": 0, "output_tokens": 0,
+                        "cache_read": 0, "cache_write": 0, "model": None}
+    return _local.usage
+
+
+class _UsageProxy(dict):
+    """Keeps `llm.LAST_USAGE[...]` working while the data is per-thread."""
+    def __getitem__(self, k): return _usage()[k]
+    def get(self, k, d=None): return _usage().get(k, d)
+    def update(self, *a, **kw): _usage().update(*a, **kw)
+    def __iter__(self): return iter(_usage())
+    def items(self): return _usage().items()
+    def keys(self): return _usage().keys()
+    def values(self): return _usage().values()
+
+
+LAST_USAGE = _UsageProxy()
 
 
 def _record(resp, model):
@@ -29,7 +53,7 @@ def _record(resp, model):
         cache_write=getattr(u, "cache_creation_input_tokens", 0) or 0,
         model=model,
     )
-    return dict(LAST_USAGE)
+    return dict(_usage())
 
 
 def client() -> Anthropic:
@@ -166,7 +190,16 @@ def stream_study(evidence: dict, ref_label: str, question: str | None,
         "description": "Return the completed, fully cited study of the passage.",
         "input_schema": STUDY_SCHEMA,
     }
+    import time as _time
     buf = ""
+    last_parse = 0.0
+    # Re-parsing the whole buffer on every delta is pure-Python character work,
+    # and the API sends thousands of tiny deltas. One stream absorbs it; two
+    # streams hold the GIL against each other on half a CPU and both crawl —
+    # which is exactly the shape of "fine alone, broken with two people".
+    # Parsing four times a second is imperceptible to a reader and costs
+    # roughly a hundredth as much.
+    PARSE_EVERY = 0.25
     try:
         with client().messages.stream(
             model=model, max_tokens=max_tokens,
@@ -189,9 +222,12 @@ def stream_study(evidence: dict, ref_label: str, question: str | None,
                     chunk = getattr(d, "partial_json", None)
                     if chunk:
                         buf += chunk
-                        obj = parse_partial(buf)
-                        if obj:
-                            yield ("partial", obj)
+                        now = _time.monotonic()
+                        if now - last_parse >= PARSE_EVERY:
+                            last_parse = now
+                            obj = parse_partial(buf)
+                            if obj:
+                                yield ("partial", obj)
             final = s.get_final_message()
             _record(final, model)
     except APIError as e:
