@@ -35,7 +35,12 @@ services:
       - key: PYTHON_VERSION
         value: "3.12"
       - key: DB_PATH
-        value: /var/data/apparatus.db     # on the disk, survives deploys
+        value: /var/data/apparatus.db     # corpus; replaced when DB_URL changes
+      # Accounts, notes, history and the study cache live in their own file so
+      # that uploading a new corpus cannot take them with it. Nothing ever
+      # overwrites this one.
+      - key: USER_DB_PATH
+        value: /var/data/userdata.db
       - key: DB_URL
         sync: false            # gzipped database; fetched once on first boot
       - key: ANTHROPIC_API_KEY

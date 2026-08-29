@@ -50,7 +50,15 @@ def main():
         os.remove(staging)
     shutil.copy2(args.db, staging)
 
-    PERSONAL = ["notes", "studies", "topics", "feedback", "rate_events"]
+    # Everything a person owns is DROPPED from the upload, not just emptied.
+    #
+    # Emptying was not enough. On the server these tables now live in a separate
+    # attached file, and SQLite resolves an unqualified name in `main` first —
+    # so shipping an empty `users` table inside the corpus would shadow the real
+    # one and every account would appear to vanish on deploy. Dropping them
+    # entirely leaves the attached copies as the only ones.
+    PERSONAL = ["users", "sessions", "login_attempts", "user_history", "notes",
+                "feedback", "usage_log", "rate_events", "studies", "topics"]
     con = sqlite3.connect(staging)
     if args.keep_mine:
         print("keeping your notes and history (--keep-mine)")
@@ -59,13 +67,12 @@ def main():
         for t in PERSONAL:
             try:
                 n = con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
-                if n:
-                    con.execute(f"DELETE FROM {t}")
-                    removed.append(f"{t} ({n:,})")
+                con.execute(f"DROP TABLE IF EXISTS {t}")
+                removed.append(f"{t}({n:,})" if n else t)
             except sqlite3.Error:
                 pass
         con.commit()
-        print("stripped personal data:", ", ".join(removed) if removed else "none found")
+        print("removed from the upload:", ", ".join(removed) if removed else "none found")
     con.close()
 
     print("vacuuming ...", flush=True)
@@ -87,8 +94,9 @@ def main():
         print("Over 2 GB — GitHub Release assets cap there. Drop a commentary "
               "or host the file elsewhere.")
     if not args.keep_mine:
-        print("\nContains: scripture, lexicon, cross-references, commentary, "
-              "embeddings.\nDoes not contain: your notes, history, or feedback.")
+        print("\nContains: scripture, lexicon, cross-references, commentary, embeddings.")
+        print("Does NOT contain: accounts, notes, history, or the study cache —")
+        print("those live in userdata.db on the server and survive this upload.")
     print("\nNext:")
     print("  1. Upload as a GitHub Release asset")
     print("  2. On Render, set DB_URL to its download URL")

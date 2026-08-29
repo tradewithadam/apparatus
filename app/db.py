@@ -253,6 +253,126 @@ CREATE TABLE IF NOT EXISTS topics (
 );
 """
 
+# ── which half a table belongs to ────────────────────────────────────
+#
+# The corpus (scripture, commentary, lexicon, vectors) is rebuilt on a laptop
+# and uploaded as a file. Everything a person creates — their account, notes,
+# history, and the study cache they paid for — must survive that upload.
+#
+# Keeping them in one file meant replacing the corpus deleted the people, which
+# is exactly what happened. They now live in separate files, attached as one
+# database at connection time. SQLite resolves an unqualified table name by
+# searching main first and then attached schemas, so every existing query keeps
+# working untouched — provided a table exists in only one of them.
+USER_TABLES = ['users', 'sessions', 'login_attempts', 'user_history', 'notes', 'feedback', 'usage_log', 'rate_events', 'studies', 'topics']
+
+def _statements(sql: str):
+    """
+    Split a schema into statements without being fooled by comments.
+
+    Splitting on ";" alone breaks the moment a comment contains one — the
+    prose above cross_refs did, and the tail of that sentence became a
+    statement of its own. Comments are stripped first.
+    """
+    out, buf = [], []
+    for raw in sql.split("\n"):
+        if raw.strip().startswith("--"):
+            continue
+        # Strip a trailing comment but keep the code before it: a column line
+        # like "kind TEXT DEFAULT 'study', -- 'study' | 'sermon'" has no
+        # semicolon of its own, while the comment on the NEXT line might, and
+        # cutting there lands in the middle of a CREATE TABLE.
+        line = raw.split("--")[0].rstrip() if "--" in raw else raw
+        buf.append(line)
+        if ";" in line:
+            stmt = "\n".join(buf).strip()
+            if stmt:
+                out.append(stmt.rstrip(";").strip())
+            buf = []
+    tail = "\n".join(buf).strip()
+    if tail:
+        out.append(tail.rstrip(";").strip())
+    return [x for x in out if x]
+
+
+def _names(stmt: str) -> str:
+    import re as _re
+    m = _re.search(r"(?:TABLE|INDEX)\s+IF NOT EXISTS\s+([A-Za-z_][\w]*)", stmt)
+    if not m:
+        return ""
+    name = m.group(1)
+    on = _re.search(r"\bON\s+([A-Za-z_][\w]*)", stmt)
+    return on.group(1) if on else name
+
+
+_ALL = _statements(SCHEMA)
+USER_SCHEMA = ";\n".join(
+    st.replace("IF NOT EXISTS ", "IF NOT EXISTS userdata.", 1)
+    for st in _ALL if _names(st) in USER_TABLES
+) + ";"
+CORPUS_SCHEMA = ";\n".join(st for st in _ALL if _names(st) not in USER_TABLES) + ";"
+
+
+def user_db_path(main_path: str) -> str:
+    """Sits beside the corpus file unless told otherwise."""
+    import os as _os
+    explicit = _os.environ.get("USER_DB_PATH", "").strip()
+    if explicit:
+        return explicit
+    d = _os.path.dirname(main_path) or "."
+    return _os.path.join(d, "userdata.db")
+
+
+def split_existing(con, user_path: str):
+    """
+    One-time move of user tables out of a combined database.
+
+    Copies first, verifies the row counts match, and only then drops the
+    originals — because getting this wrong deletes the accounts it exists to
+    protect. If anything does not line up, it leaves both copies alone and
+    says so; a duplicated table is recoverable, a dropped one is not.
+    """
+    import sys
+    moved = []
+    for t in USER_TABLES:
+        try:
+            in_main = con.execute(
+                "SELECT COUNT(*) FROM main.sqlite_master WHERE type='table' AND name=?",
+                (t,)).fetchone()[0]
+        except Exception:
+            continue
+        if not in_main:
+            continue
+        n_main = con.execute(f"SELECT COUNT(*) FROM main.{t}").fetchone()[0]
+        n_user = con.execute(f"SELECT COUNT(*) FROM userdata.{t}").fetchone()[0]
+        if n_user:
+            # Already split and something re-created the old copy. Leave it.
+            continue
+        if n_main:
+            # Copy by explicit column name, not SELECT *. The old table has
+            # columns that later migrations added; the freshly created one has
+            # only what the base schema declares, and the orders will not match
+            # either. Intersecting the two is the only safe copy.
+            src = [r[1] for r in con.execute(f"PRAGMA main.table_info({t})")]
+            dst = [r[1] for r in con.execute(f"PRAGMA userdata.table_info({t})")]
+            shared = [c for c in src if c in dst]
+            if not shared:
+                print(f"[split] {t}: no shared columns; leaving it alone", file=sys.stderr)
+                continue
+            cols = ", ".join(shared)
+            con.execute(f"INSERT INTO userdata.{t} ({cols}) SELECT {cols} FROM main.{t}")
+            check = con.execute(f"SELECT COUNT(*) FROM userdata.{t}").fetchone()[0]
+            if check != n_main:
+                print(f"[split] {t}: copied {check} of {n_main}; leaving both in place",
+                      file=sys.stderr)
+                con.rollback()
+                continue
+        con.execute(f"DROP TABLE main.{t}")
+        moved.append(f"{t}({n_main})")
+    if moved:
+        con.commit()
+        print(f"[split] moved to {user_path}: {', '.join(moved)}", flush=True)
+
 
 # Columns added after the first release. SQLite has no ADD COLUMN IF NOT
 # EXISTS, so check the table first — this runs on every boot and must be a
@@ -268,17 +388,19 @@ _ADDED_COLUMNS = {
 }
 
 
-def migrate(con):
+def migrate(con, schema: str = ""):
+    """Add columns introduced after the first release. Idempotent."""
+    prefix = f"{schema}." if schema else ""
     for table, cols in _ADDED_COLUMNS.items():
         try:
-            have = {r[1] for r in con.execute(f"PRAGMA table_info({table})")}
+            have = {r[1] for r in con.execute(f"PRAGMA {prefix}table_info({table})")}
         except Exception:
             continue
         if not have:
             continue
         for name, decl in cols:
             if name not in have:
-                con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+                con.execute(f"ALTER TABLE {prefix}{table} ADD COLUMN {name} {decl}")
     con.commit()
 
 
@@ -298,11 +420,26 @@ def close_db(_=None):
 
 
 def connect(path: str) -> sqlite3.Connection:
-    """Standalone connection for ingest scripts, outside the Flask app context."""
+    """
+    Open the corpus and attach the user database as one logical database.
+
+    Both halves are created if missing, and a combined database left over from
+    before the split is migrated on first open.
+    """
     Path(path).parent.mkdir(parents=True, exist_ok=True)
+    upath = user_db_path(path)
+    Path(upath).parent.mkdir(parents=True, exist_ok=True)
+
     con = sqlite3.connect(path, check_same_thread=False, timeout=20)
     con.row_factory = sqlite3.Row
-    con.executescript(SCHEMA)
+    con.execute("ATTACH DATABASE ? AS userdata", (upath,))
+    con.executescript(CORPUS_SCHEMA)
+    con.executescript(USER_SCHEMA)
+    # Bring the user file up to date before moving anything into it, or the
+    # copy lands in tables that are missing the newer columns.
+    migrate(con, schema="userdata")
+    split_existing(con, upath)
+    migrate(con, schema="userdata")
     # Ingest writes a lot; these make it bearable.
     con.execute("PRAGMA journal_mode = WAL")
     con.execute("PRAGMA synchronous = NORMAL")

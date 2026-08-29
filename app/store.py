@@ -33,15 +33,20 @@ def connect():
     if IS_PG:
         return _pg_pool().getconn()
     import sqlite3
+    from .db import user_db_path
     # check_same_thread=False because gunicorn now runs threaded workers, and a
     # streaming response is created in one thread and iterated in another. Each
     # request and each stream opens its own connection and closes it — nothing
     # is shared concurrently — so the check is protecting against a situation
     # that cannot arise here, while breaking one that does.
-    con = sqlite3.connect(os.environ.get("DB_PATH", "data/apparatus.db"),
-                          check_same_thread=False, timeout=20)
+    path = os.environ.get("DB_PATH", "data/apparatus.db")
+    con = sqlite3.connect(path, check_same_thread=False, timeout=20)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA busy_timeout = 20000")
+    # Accounts, notes and history live in their own file so replacing the
+    # corpus cannot take them with it. Attached here, so every query that says
+    # "notes" or "users" keeps working without knowing where it lives.
+    con.execute("ATTACH DATABASE ? AS userdata", (user_db_path(path),))
     return con
 
 

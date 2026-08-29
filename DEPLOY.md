@@ -37,6 +37,28 @@ migration — the SQLite file you already have just goes on it.
 
 ---
 
+## Two files, not one
+
+The corpus and the people are separate:
+
+| file | holds | replaced by an upload? |
+|---|---|---|
+| `apparatus.db` | scripture, commentary, lexicon, vectors | **yes** |
+| `userdata.db` | accounts, notes, history, study cache | **never** |
+
+They are attached as one database at runtime, so nothing in the code has to
+know which file a table lives in. The reason for the split is blunt: they used
+to share a file, and uploading a rebuilt corpus deleted every account along
+with it. The first time the app opens an old combined database it moves the
+user tables across automatically and reports what it moved.
+
+`prepare_deploy.py` now **drops** those tables from the upload rather than
+emptying them. An empty `users` table inside the corpus would shadow the real
+one — SQLite resolves an unqualified name in the main database first — and
+every account would appear to vanish on deploy.
+
+---
+
 ## 1. Package the database
 
 ```bash
