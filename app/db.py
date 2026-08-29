@@ -109,6 +109,51 @@ CREATE VIRTUAL TABLE IF NOT EXISTS verses_fts USING fts5(
     text, translation UNINDEXED, vid UNINDEXED, tokenize='porter'
 );
 
+-- ── accounts ────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS users (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    email         TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    name          TEXT,
+    is_admin      INTEGER DEFAULT 0,
+    created_at    INTEGER,
+    last_seen     INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+CREATE TABLE IF NOT EXISTS sessions (
+    token      TEXT PRIMARY KEY,
+    user_id    INTEGER NOT NULL,
+    created_at INTEGER,
+    expires_at INTEGER,
+    user_agent TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
+CREATE TABLE IF NOT EXISTS login_attempts (
+    id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    bucket TEXT NOT NULL,
+    ts     INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_attempts ON login_attempts(bucket, ts);
+
+-- Who looked at what. Separate from the study cache on purpose: the cache is
+-- shared so ten people reading John 3:16 cost one model call, while the fact
+-- that YOU read it is yours alone.
+CREATE TABLE IF NOT EXISTS user_history (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL,
+    cache_key  TEXT NOT NULL,
+    kind       TEXT NOT NULL,
+    title      TEXT,
+    detail     TEXT,
+    lang       TEXT DEFAULT 'en',
+    saved      INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (user_id, cache_key)
+);
+CREATE INDEX IF NOT EXISTS idx_uh_user ON user_history(user_id, created_at DESC);
+
 -- The user's own writing. Anchored to a verse range rather than to a study,
 -- so a note written while reading Romans 5 surfaces again next time Romans 5
 -- comes up — whether that is a passage study, a topic, or sermon prep.
@@ -216,7 +261,9 @@ _ADDED_COLUMNS = {
     "studies": [("kind", "TEXT DEFAULT 'study'"), ("title", "TEXT"),
                 ("lang", "TEXT DEFAULT 'en'"), ("saved", "INTEGER DEFAULT 0")],
     "topics":  [("saved", "INTEGER DEFAULT 0")],
-    "notes":   [("lang", "TEXT DEFAULT 'en'")],
+    "notes":    [("lang", "TEXT DEFAULT 'en'"), ("user_id", "INTEGER")],
+    "feedback": [("user_id", "INTEGER")],
+    "usage_log":[("user_id", "INTEGER")],
 }
 
 

@@ -150,6 +150,56 @@ def upsert_topic(con, key, topic, lang, payload, model):
     execute(con, sql, args)
 
 
+def remember(con, user_id, cache_key, kind, title, detail=None, lang="en"):
+    """Record that this user opened this study. Idempotent per user+study."""
+    if not user_id:
+        return
+    sql = ("""INSERT INTO user_history (user_id, cache_key, kind, title, detail, lang)
+              VALUES (?,?,?,?,?,?)
+              ON CONFLICT (user_id, cache_key) DO UPDATE
+                SET created_at = CURRENT_TIMESTAMP, title = EXCLUDED.title"""
+           if IS_PG else
+           """INSERT INTO user_history (user_id, cache_key, kind, title, detail, lang)
+              VALUES (?,?,?,?,?,?)
+              ON CONFLICT (user_id, cache_key) DO UPDATE
+                SET created_at = CURRENT_TIMESTAMP, title = excluded.title""")
+    try:
+        execute(con, sql, (user_id, cache_key, kind, title, detail, lang))
+    except Exception:
+        pass
+
+
+def user_history(con, user_id, limit=60, saved_only=False, q=None):
+    cond, args = "", [user_id]
+    if saved_only:
+        cond += " AND COALESCE(saved,0) = 1"
+    if q:
+        like = f"%{q.lower()}%"
+        cond += (" AND (LOWER(COALESCE(title,'')) LIKE ?"
+                 " OR LOWER(COALESCE(detail,'')) LIKE ?)")
+        args += [like, like]
+    return rows_or_empty(con, f"""
+        SELECT cache_key, kind, title, detail, lang, COALESCE(saved,0) AS saved,
+               created_at
+        FROM user_history WHERE user_id = ? {cond}
+        ORDER BY created_at DESC LIMIT ?
+    """, (*args, limit))
+
+
+def set_saved_user(con, user_id, cache_key, saved: bool) -> bool:
+    execute(con, "UPDATE user_history SET saved = ? WHERE user_id = ? AND cache_key = ?",
+            (1 if saved else 0, user_id, cache_key))
+    return bool(rows_or_empty(con,
+        "SELECT 1 AS x FROM user_history WHERE user_id = ? AND cache_key = ?",
+        (user_id, cache_key)))
+
+
+def delete_user_history(con, user_id, cache_key):
+    """Removes it from this user's list only — the shared cache is untouched."""
+    execute(con, "DELETE FROM user_history WHERE user_id = ? AND cache_key = ?",
+            (user_id, cache_key))
+
+
 def history(con, limit: int = 60, saved_only: bool = False,
             lang: str | None = None, q: str | None = None):
     """

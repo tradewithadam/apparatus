@@ -1,4 +1,4 @@
-# Apparatus
+# Ad Fontes
 
 A Bible study tool that shows its work.
 

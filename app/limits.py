@@ -67,12 +67,16 @@ def prune(con):
                   (int(time.time()) - DAY - HOUR,))
 
 
-def check(con, kind: str):
+def check(con, kind: str, bucket: str | None = None):
     """
     Returns None when allowed, or (payload, status) to return to the caller.
+
+    `bucket` lets a signed-in user be limited by account rather than address —
+    fairer on a church wifi where everyone shares one IP, and it means the
+    admin usage page reflects people rather than networks.
     """
     now = int(time.time())
-    ip = client_ip()
+    ip = bucket or client_ip()
 
     if now % 37 == 0:              # roughly 1 request in 37 tidies up
         prune(con)
@@ -110,7 +114,8 @@ def gated() -> bool:
     """Is an access code required, and does this request lack it?"""
     if not ACCESS_CODE:
         return False
-    return request.cookies.get("apparatus_access") != ACCESS_CODE
+    return (request.cookies.get("adfontes_access")
+            or request.cookies.get("apparatus_access")) != ACCESS_CODE
 
 
 def usage(con) -> dict:

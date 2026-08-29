@@ -1,6 +1,6 @@
 # Start here
 
-Getting Apparatus running on your machine. About 20 minutes, most of it waiting.
+Getting Ad Fontes running on your machine. About 20 minutes, most of it waiting.
 
 ---
 

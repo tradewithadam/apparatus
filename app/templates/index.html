@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Apparatus — study the text, sources shown</title>
+<title>Ad Fontes — to the sources</title>
 <meta name="theme-color" content="#14161C">
 <meta name="description" content="Study the text. Every claim shows its source.">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Apparatus">
+<meta name="apple-mobile-web-app-title" content="Ad Fontes">
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="apple-touch-icon" href="/icon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -72,6 +72,9 @@ a{color:var(--rubric)}
 /* ── masthead ─────────────────────────────────────────── */
 .masthead{border-bottom:1px solid var(--edge);padding:18px 26px;background:var(--raised)}
 .masthead-inner{max-width:1280px;margin:0 auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.mark{display:inline-block;width:34px;height:34px;flex:0 0 34px}
+.mark svg{width:100%;height:100%;display:block}
+@media(max-width:560px){.mark{width:28px;height:28px;flex:0 0 28px}}
 .wordmark{
   font-family:"EB Garamond",Georgia,serif;font-size:27px;font-weight:600;
   letter-spacing:.005em;margin:0;line-height:1;
@@ -670,6 +673,26 @@ select:focus{outline:none;border-color:var(--gold)}
   background:var(--raised);border:1px solid var(--edge);border-radius:11px;
   padding:22px 24px;width:min(440px,94vw);box-shadow:var(--shadow);
 }
+.authwhy{font-size:13px;color:var(--muted);margin:0 0 16px;line-height:1.5}
+.auth-err{color:var(--rubric);font-size:13px;margin:10px 0 0;min-height:1em}
+.flagcard input[type=email],.flagcard input[type=password],.flagcard input[type=text]{
+  width:100%;background:var(--raised2);border:1px solid var(--edge);
+  border-radius:6px;padding:10px 12px;color:var(--text);font-size:15px;
+}
+.flagcard input:focus{outline:none;border-color:var(--gold)}
+.usertable{border:1px solid var(--edge);border-radius:8px;margin:14px 0;overflow:hidden}
+.ut-head{
+  font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--gold);padding:9px 12px;
+  border-bottom:1px solid var(--edge);background:var(--raised2);
+}
+.ut-row{display:flex;align-items:center;gap:12px;padding:9px 12px;
+  border-bottom:1px solid var(--edge);font-size:13px}
+.ut-row:last-child{border-bottom:0}
+.ut-who{flex:1;min-width:0}
+.ut-who small{display:block;color:var(--muted);font-size:11px}
+.ut-n{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--muted)}
+.ut-c{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--verdigris);min-width:52px;text-align:right}
 .flagcard h3{font-family:"EB Garamond",Georgia,serif;font-size:20px;margin:0 0 16px;color:var(--rubric)}
 .flagcard label{display:block;margin:12px 0 5px}
 .flagcard select,.flagcard textarea{
@@ -862,7 +885,10 @@ footer div{max-width:1280px;margin:0 auto;line-height:1.7}
   /* The tagline costs a whole line on a phone and says nothing the app
      doesn't demonstrate in five seconds. */
   .tagline{display:none}
-  .wordmark{font-size:23px}
+  .mark{display:inline-block;width:34px;height:34px;flex:0 0 34px}
+.mark svg{width:100%;height:100%;display:block}
+@media(max-width:560px){.mark{width:28px;height:28px;flex:0 0 28px}}
+.wordmark{font-size:23px}
   .masthead-inner{gap:10px}
   .sheet{padding:18px 15px 70px}
   .query{padding:16px 15px 0}
@@ -876,8 +902,19 @@ footer div{max-width:1280px;margin:0 auto;line-height:1.7}
 
 <header class="masthead">
   <div class="masthead-inner">
-    <h1 class="wordmark">Appa<em>r</em>atus</h1>
+    <span class="mark" aria-hidden="true">
+      <svg viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="var(--raised2)"/>
+        <text x="256" y="318" font-family="Georgia,serif" font-size="300" font-weight="700"
+              fill="var(--rubric)" text-anchor="middle">A</text>
+        <g stroke="var(--gold)" fill="none" stroke-linecap="round">
+          <path d="M154 366 Q256 322 358 366" stroke-width="11"/>
+          <path d="M120 408 Q256 348 392 408" stroke-width="9" opacity=".62"/>
+          <path d="M90 448 Q256 374 422 448" stroke-width="7" opacity=".34"/>
+        </g></svg>
+    </span>
+    <h1 class="wordmark">Ad <em>F</em>ontes</h1>
     <span class="tagline" id="t-tagline">Study the text. Every claim shows its source.</span>
+    <span class="themetoggle"><button id="acct-btn" title="Account">◔</button></span>
     <span class="lenspick"><select id="lens"></select></span>
     <span class="themetoggle"><button id="hist-btn" title="History">☰</button></span>
     <span class="themetoggle"><button id="theme-btn" title="Light / dark">◐</button></span>
@@ -980,7 +1017,7 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;
 // ── translations ────────────────────────────────────────────────────
 const STR = {
   en: {
-    tagline: "Study the text. Every claim shows its source.",
+    tagline: "To the sources. Every claim shows its work.",
     lblRef: "Passage", lblQ: "What do you want to understand? (optional)",
     go: "Open the text", working: "Pulling the sources…",
     stReading: (r) => `Opening ${r}`,
@@ -1040,6 +1077,13 @@ const STR = {
     cutNote: "cut in this order", minLabel: (n) => `${n} min`,
     totalMin: (n, t) => `${n} min of content · ${t} min slot`,
     copyMd: "Copy", downloadMd: "Download", copied: "Copied",
+    signIn: "Sign in", signUp: "Create account", signOut: "Sign out",
+    emailL: "Email", passwordL: "Password", nameL: "Your name (optional)",
+    inviteL: "Invite code", haveAccount: "Already have an account?",
+    needAccount: "Need an account?", account: "Account",
+    yourUsage: "Your studies", adminUsers: "Everyone",
+    signedInAs: (e) => `Signed in as ${e}`,
+    authWhy: "Your notes and history are yours. Studies are shared, so they stay fast and cheap.",
     lensLabel: "Read from", lensAny: "No preference",
     lensNote: "Your tradition's reading comes first. The others still appear.",
     othersDiffer: (n) => `${n} other tradition${n===1?"":"s"} read this differently`,
@@ -1101,7 +1145,7 @@ const STR = {
     ],
   },
   es: {
-    tagline: "Estudia el texto. Cada afirmación muestra su fuente.",
+    tagline: "A las fuentes. Cada afirmación muestra su respaldo.",
     lblRef: "Pasaje", lblQ: "¿Qué quieres entender? (opcional)",
     go: "Abrir el texto", working: "Buscando las fuentes…",
     stReading: (r) => `Abriendo ${r}`,
@@ -1161,6 +1205,13 @@ const STR = {
     cutNote: "corta en este orden", minLabel: (n) => `${n} min`,
     totalMin: (n, t) => `${n} min de contenido · ${t} min disponibles`,
     copyMd: "Copiar", downloadMd: "Descargar", copied: "Copiado",
+    signIn: "Entrar", signUp: "Crear cuenta", signOut: "Salir",
+    emailL: "Correo", passwordL: "Contraseña", nameL: "Tu nombre (opcional)",
+    inviteL: "Código de invitación", haveAccount: "¿Ya tienes cuenta?",
+    needAccount: "¿Necesitas una cuenta?", account: "Cuenta",
+    yourUsage: "Tus estudios", adminUsers: "Todos",
+    signedInAs: (e) => `Sesión: ${e}`,
+    authWhy: "Tus notas e historial son tuyos. Los estudios se comparten, así son rápidos y económicos.",
     lensLabel: "Leer desde", lensAny: "Sin preferencia",
     lensNote: "La lectura de tu tradición aparece primero. Las demás siguen ahí.",
     othersDiffer: (n) => `${n} tradición${n===1?"":"es"} más lo lee distinto`,
@@ -1223,7 +1274,22 @@ const STR = {
   },
 };
 
-let LANG = (localStorage.getItem("apparatus-lang")
+// Preference keys moved with the rename. Copy the old values across once so
+// nobody's theme, language or tradition resets just because the app changed
+// its name — then the old keys are removed.
+(function migratePrefs(){
+  const pairs = [["apparatus-lang","adfontes-lang"], ["apparatus-theme","adfontes-theme"],
+                 ["apparatus-lens","adfontes-lens"], ["apparatus-last","adfontes-last"]];
+  try{
+    for(const [old, now] of pairs){
+      const v = localStorage.getItem(old);
+      if(v !== null && localStorage.getItem(now) === null) localStorage.setItem(now, v);
+      if(v !== null) localStorage.removeItem(old);
+    }
+  }catch{}
+})();
+
+let LANG = (localStorage.getItem("adfontes-lang")
             || (navigator.language || "en").slice(0,2)) === "es" ? "es" : "en";
 const T = () => STR[LANG];
 
@@ -1272,7 +1338,7 @@ function applyLanguage(){
 function setLanguage(l){
   if(l === LANG) return;
   LANG = l;
-  localStorage.setItem("apparatus-lang", l);
+  localStorage.setItem("adfontes-lang", l);
   // Reset to the intro; a study written in the other language would be stale.
   $("#passage").innerHTML = "";
   $("#apparatus").innerHTML = `<div class="empty" id="intro"></div>`;
@@ -1778,10 +1844,10 @@ async function runTopic(){
 // ── theme ───────────────────────────────────────────────────────────
 function setTheme(t){
   document.documentElement.setAttribute("data-theme", t);
-  localStorage.setItem("apparatus-theme", t);
+  localStorage.setItem("adfontes-theme", t);
   $("#theme-btn").textContent = t === "dark" ? "◐" : "◑";
 }
-setTheme(localStorage.getItem("apparatus-theme") || "dark");
+setTheme(localStorage.getItem("adfontes-theme") || "dark");
 
 // ── section nav + grounding badge ───────────────────────────────────
 // Built after render by reading the DOM, so both renderers get it for free
@@ -2356,12 +2422,12 @@ function toggleSpeech(){
 // ── resume ──────────────────────────────────────────────────────────
 function rememberView(v){
   LAST_VIEW = v;
-  try{ localStorage.setItem("apparatus-last", JSON.stringify(v)); }catch{}
+  try{ localStorage.setItem("adfontes-last", JSON.stringify(v)); }catch{}
 }
 
 function offerResume(){
   let v = null;
-  try{ v = JSON.parse(localStorage.getItem("apparatus-last") || "null"); }catch{}
+  try{ v = JSON.parse(localStorage.getItem("adfontes-last") || "null"); }catch{}
   if(!v || !v.ref) return;
   const intro = $("#intro");
   if(!intro) return;
@@ -2416,6 +2482,7 @@ function limitMessage(d){
 }
 
 async function handleApiError(r, d){
+  if(r.status === 401 && d.auth){ showAuth("in"); return true; }
   if(r.status === 401 && d.gated){ showGate(); return true; }
   if(r.status === 429){
     $("#apparatus").innerHTML = limitMessage(d);
@@ -2590,7 +2657,7 @@ function wireTermHighlight(){
 // still rendered in full, one tap away. Filtering them out would quietly turn
 // this into a tool that tells people their view is the only view, which is
 // the thing it was built to prevent.
-let LENS = localStorage.getItem("apparatus-lens") || "";
+let LENS = localStorage.getItem("adfontes-lens") || "";
 
 const TRADITION_LABELS = {
   "puritan":"Puritan", "reformed":"Reformed / Calvinist",
@@ -2615,7 +2682,7 @@ function fillLens(traditions){
 
 function setLens(v){
   LENS = v || "";
-  localStorage.setItem("apparatus-lens", LENS);
+  localStorage.setItem("adfontes-lens", LENS);
 }
 
 // Collapse the positions the reader didn't ask to lead with. Present, counted,
@@ -2766,6 +2833,93 @@ function liveItem(key, item){
   if(key === "key_terms") wireTermHighlight();
 }
 
+
+// ── accounts ────────────────────────────────────────────────────────
+let ME = null, AUTH_MODE = "in";
+
+async function loadMe(){
+  try{
+    const d = await (await fetch("/api/auth/me")).json();
+    ME = d.user; window.AUTH_CFG = d;
+    const b = $("#acct-btn");
+    if(b) b.textContent = ME ? (ME.name || ME.email)[0].toUpperCase() : "◔";
+    if(!ME && d.accounts_required) showAuth();
+  }catch{}
+}
+
+function showAuth(mode){
+  AUTH_MODE = mode || AUTH_MODE;
+  document.getElementById("authmodal")?.remove();
+  const t = T(), signup = AUTH_MODE === "up";
+  const needInvite = signup && window.AUTH_CFG?.invite_required;
+  const m = document.createElement("div");
+  m.id = "authmodal"; m.className = "flagmodal";
+  m.innerHTML = `<div class="flagcard">
+    <h3>${esc(signup ? t.signUp : t.signIn)}</h3>
+    <p class="authwhy">${esc(t.authWhy)}</p>
+    ${signup ? `<label>${esc(t.nameL)}</label><input id="au-name" type="text">` : ""}
+    <label>${esc(t.emailL)}</label><input id="au-email" type="email" autocomplete="email">
+    <label>${esc(t.passwordL)}</label>
+    <input id="au-pass" type="password" autocomplete="${signup ? "new-password" : "current-password"}">
+    ${needInvite ? `<label>${esc(t.inviteL)}</label><input id="au-invite" type="text">` : ""}
+    <p id="au-err" class="auth-err"></p>
+    <div class="flagrow">
+      <button id="au-switch">${esc(signup ? t.haveAccount : t.needAccount)}</button>
+      <button id="au-go" class="notesave">${esc(signup ? t.signUp : t.signIn)}</button>
+    </div></div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click", e => {
+    if(e.target === m && !window.AUTH_CFG?.accounts_required) m.remove();
+  });
+  $("#au-switch").addEventListener("click", () => showAuth(signup ? "in" : "up"));
+  const go = async () => {
+    const body = {email: $("#au-email").value, password: $("#au-pass").value};
+    if(signup){
+      body.name = $("#au-name")?.value || "";
+      body.invite = $("#au-invite")?.value || "";
+    }
+    const r = await fetch(`/api/auth/${signup ? "register" : "login"}`, {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(body)});
+    const d = await r.json();
+    if(!r.ok){ $("#au-err").textContent = d.error || "Something went wrong."; return; }
+    ME = d.user; m.remove(); loadMe(); loadHistory?.();
+  };
+  $("#au-go").addEventListener("click", go);
+  ["au-email","au-pass"].forEach(id =>
+    $("#"+id)?.addEventListener("keydown", e => { if(e.key === "Enter") go(); }));
+  $("#au-email").focus();
+}
+
+async function showAccount(){
+  if(!ME) return showAuth("in");
+  const t = T();
+  let admin = null;
+  if(ME.is_admin){
+    try{ admin = await (await fetch("/api/admin/users")).json(); }catch{}
+  }
+  const m = document.createElement("div");
+  m.className = "flagmodal";
+  m.innerHTML = `<div class="flagcard" style="width:min(620px,94vw)">
+    <h3>${esc(t.account)}</h3>
+    <p class="authwhy">${esc(t.signedInAs(ME.email))}</p>
+    ${admin ? `<div class="usertable"><div class="ut-head">${esc(t.adminUsers)} · ${admin.count}</div>
+      ${admin.users.map(u => `<div class="ut-row">
+        <span class="ut-who">${esc(u.name || u.email)}${u.is_admin ? " ★" : ""}
+          <small>${esc(u.email)}</small></span>
+        <span class="ut-n">${u.studies} studies · ${u.notes} notes</span>
+        <span class="ut-c">$${(u.estimated_cost || 0).toFixed(2)}</span>
+      </div>`).join("")}</div>` : ""}
+    <div class="flagrow"><button id="ac-out" class="notesave">${esc(t.signOut)}</button></div>
+  </div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click", e => { if(e.target === m) m.remove(); });
+  $("#ac-out").addEventListener("click", async () => {
+    await fetch("/api/auth/logout", {method:"POST"});
+    ME = null; m.remove(); loadMe();
+  });
+}
+
 async function run(){
   const ref = $("#ref").value.trim();
   const q   = $("#q").value.trim();
@@ -2828,7 +2982,9 @@ function loadStatus(){
   }).catch(() => $("#status").textContent = T().corpusFail);
 }
 
+$("#acct-btn").addEventListener("click", showAccount);
 $("#lens").addEventListener("change", e => setLens(e.target.value));
+loadMe();
 $("#hist-btn").addEventListener("click", openDrawer);
 $("#hist-close").addEventListener("click", closeDrawer);
 $("#scrim").addEventListener("click", closeDrawer);

@@ -1,4 +1,4 @@
-# Putting Apparatus online
+# Putting Ad Fontes online
 
 An afternoon if it goes smoothly. The order below matters — step 0 is the one
 that protects your card.

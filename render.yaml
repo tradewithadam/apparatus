@@ -4,6 +4,10 @@
 # verse vectors loaded the database runs past 400 MB, which is over Supabase's
 # free tier — so that route starts at $25/month before the first user. A 5 GB
 # Render disk is about $1.25/month and needs no migration.
+# The service name and disk name are deliberately unchanged by the rename.
+# Renaming a Render service changes its URL and can detach the persistent disk
+# — which would mean re-downloading the 620 MB database. The name people see
+# lives in the app, not here.
 services:
   - type: web
     name: apparatus
@@ -55,5 +59,14 @@ services:
         value: "20"
       - key: RATE_PER_DAY
         value: "60"
+      # ── accounts ─────────────────────────────────────────────────
+      - key: SECRET_KEY
+        generateValue: true    # Render generates and stores a random one
+      - key: ACCOUNTS_REQUIRED
+        value: "1"             # everyone signs in; notes and history are theirs
+      - key: INVITE_CODE
+        sync: false            # required to register. blank = open signup
+      - key: ADMIN_EMAIL
+        sync: false            # this account sees the usage table
       - key: ACCESS_CODE
-        sync: false            # set to share privately; leave unset for public
+        sync: false            # legacy shared code; leave blank once accounts are on

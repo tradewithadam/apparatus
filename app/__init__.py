@@ -5,9 +5,9 @@ import time
 
 from flask import Response, stream_with_context
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, g as flask_g
 
-from . import refs, retrieval, validate, llm, store, topics, limits
+from . import refs, retrieval, validate, llm, store, topics, limits, auth
 from .db import get_db, close_db, init_db
 
 
@@ -103,6 +103,8 @@ def create_app(config=None):
         # Reading text per UI language. Spanish readers get Reina-Valera 1909.
         TRANSLATIONS_ES=os.environ.get("TRANSLATIONS_ES", "SpaRV").split(","),
         CACHE_STUDIES=os.environ.get("CACHE_STUDIES", "1") == "1",
+        ACCOUNTS_REQUIRED=os.environ.get("ACCOUNTS_REQUIRED", "0") == "1",
+        SECRET_KEY=os.environ.get("SECRET_KEY", "dev-only-change-me"),
     )
     if config:
         app.config.update(config)
@@ -143,14 +145,36 @@ def create_app(config=None):
     def index():
         return render_template("index.html")
 
+    def current_user():
+        """Resolve the signed-in user once per request."""
+        if "user" not in flask_g.__dict__.get("_cache", {}):
+            flask_g._cache = getattr(flask_g, "_cache", {})
+            try:
+                token = (request.cookies.get(auth.SESSION_COOKIE)
+                         or request.cookies.get(auth.LEGACY_SESSION_COOKIE, ""))
+                flask_g._cache["user"] = auth.user_for_token(get_db(), token)
+            except Exception:
+                flask_g._cache["user"] = None
+        return flask_g._cache["user"]
+
+    def require_user():
+        u = current_user()
+        if not u:
+            return None, (jsonify({"error": "sign_in_required", "auth": True}), 401)
+        return u, None
+
     def guard(kind):
         """
         Access gate then rate limit, in that order — a locked door should not
         consume someone's quota. Returns a response to send, or None to proceed.
         """
+        if app.config["ACCOUNTS_REQUIRED"] and not current_user():
+            return jsonify({"error": "sign_in_required", "auth": True}), 401
         if limits.gated():
             return jsonify({"error": "access_required", "gated": True}), 401
-        hit = limits.check(get_db(), kind)
+        u = current_user()
+        hit = limits.check(get_db(), kind,
+                           bucket=f"u:{u['id']}" if u else None)
         if hit:
             payload, code = hit
             resp = jsonify(payload)
@@ -165,7 +189,7 @@ def create_app(config=None):
         if not limits.ACCESS_CODE or code != limits.ACCESS_CODE:
             return jsonify({"error": "Wrong code"}), 403
         resp = jsonify({"ok": True})
-        resp.set_cookie("apparatus_access", limits.ACCESS_CODE,
+        resp.set_cookie("adfontes_access", limits.ACCESS_CODE,
                         max_age=60 * 60 * 24 * 90, httponly=True, samesite="Lax",
                         secure=request.is_secure)
         return resp
@@ -229,6 +253,10 @@ def create_app(config=None):
         blocked = guard("study")
         if blocked:
             return blocked
+        # Resolved here, not inside steps(): the generator executes after the
+        # request context has been torn down, so cookies are no longer readable.
+        _u = current_user()
+        uid = _u["id"] if _u else None
 
         question = (body.get("question") or "").strip() or None
         if question and len(question) > 500:
@@ -374,6 +402,10 @@ def create_app(config=None):
         blocked = guard("topic")
         if blocked:
             return blocked
+        # Resolved here, not inside steps(): the generator executes after the
+        # request context has been torn down, so cookies are no longer readable.
+        _u = current_user()
+        uid = _u["id"] if _u else None
         if len(topic) > 300:
             return jsonify({"error": "Too long — keep it under 300 characters."
                             if lang == "en" else
@@ -443,6 +475,10 @@ def create_app(config=None):
         blocked = guard("sermon")
         if blocked:
             return blocked
+        # Resolved here, not inside steps(): the generator executes after the
+        # request context has been torn down, so cookies are no longer readable.
+        _u = current_user()
+        uid = _u["id"] if _u else None
 
         opts = {
             "audience": (body.get("audience") or "").strip()[:120],
@@ -502,11 +538,13 @@ def create_app(config=None):
     @app.post("/api/feedback")
     def api_feedback():
         body = request.get_json(silent=True) or {}
+        u = current_user()
         store.execute(get_db(), """
-            INSERT INTO feedback (cache_key, kind, ref_label, section, note)
-            VALUES (?,?,?,?,?)
+            INSERT INTO feedback (cache_key, kind, ref_label, section, note, user_id)
+            VALUES (?,?,?,?,?,?)
         """, (body.get("cache_key"), body.get("kind"), body.get("ref"),
-              (body.get("section") or "")[:80], (body.get("note") or "")[:2000]))
+              (body.get("section") or "")[:80], (body.get("note") or "")[:2000],
+              u["id"] if u else None))
         return jsonify({"ok": True})
 
     @app.get("/api/feedback")
@@ -531,6 +569,8 @@ def create_app(config=None):
         when you open Romans 5:3, because that is where you left the thought.
         """
         con = get_db()
+        u = current_user()
+        uid = u["id"] if u else None
         ref = request.args.get("ref")
         if ref:
             try:
@@ -538,13 +578,17 @@ def create_app(config=None):
             except refs.RefError as e:
                 return jsonify({"error": str(e)}), 400
             rows = store.rows(con, """
-                SELECT * FROM notes WHERE start_vid <= ? AND end_vid >= ?
+                SELECT * FROM notes
+                WHERE start_vid <= ? AND end_vid >= ?
+                  AND (user_id IS ? OR (? IS NULL AND user_id IS NULL))
                 ORDER BY updated_at DESC LIMIT 50
-            """, (end, start))
+            """, (end, start, uid, uid))
         else:
             rows = store.rows(con, """
-                SELECT * FROM notes ORDER BY updated_at DESC LIMIT 100
-            """)
+                SELECT * FROM notes
+                WHERE (user_id IS ? OR (? IS NULL AND user_id IS NULL))
+                ORDER BY updated_at DESC LIMIT 100
+            """, (uid, uid))
         return jsonify({"notes": [dict(r) for r in rows]})
 
     @app.post("/api/notes")
@@ -562,27 +606,38 @@ def create_app(config=None):
             return jsonify({"error": str(e)}), 400
 
         con = get_db()
+        u = current_user()
+        uid = u["id"] if u else None
         label = refs.range_label(start, end, lang)
         note_id = body.get("id")
         if note_id:
+            # The user_id condition is the authorisation check: without it,
+            # anyone could edit anyone's note by guessing an integer.
             store.execute(con, """
                 UPDATE notes SET body = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """, (text, note_id))
+                WHERE id = ? AND (user_id IS ? OR (? IS NULL AND user_id IS NULL))
+            """, (text, note_id, uid, uid))
         else:
             store.execute(con, """
-                INSERT INTO notes (start_vid, end_vid, ref_label, body, lang)
-                VALUES (?,?,?,?,?)
-            """, (start, end, label, text, lang))
+                INSERT INTO notes (start_vid, end_vid, ref_label, body, lang, user_id)
+                VALUES (?,?,?,?,?,?)
+            """, (start, end, label, text, lang, uid))
         rows = store.rows(con, """
-            SELECT * FROM notes WHERE start_vid <= ? AND end_vid >= ?
+            SELECT * FROM notes
+            WHERE start_vid <= ? AND end_vid >= ?
+              AND (user_id IS ? OR (? IS NULL AND user_id IS NULL))
             ORDER BY updated_at DESC LIMIT 50
-        """, (end, start))
+        """, (end, start, uid, uid))
         return jsonify({"ok": True, "notes": [dict(r) for r in rows]})
 
     @app.delete("/api/notes/<int:note_id>")
     def api_notes_delete(note_id):
-        store.execute(get_db(), "DELETE FROM notes WHERE id = ?", (note_id,))
+        u = current_user()
+        uid = u["id"] if u else None
+        store.execute(get_db(), """
+            DELETE FROM notes
+            WHERE id = ? AND (user_id IS ? OR (? IS NULL AND user_id IS NULL))
+        """, (note_id, uid, uid))
         return jsonify({"ok": True})
 
     @app.get("/api/history")
@@ -595,8 +650,15 @@ def create_app(config=None):
             limit = 60
         saved_only = request.args.get("saved") == "1"
         q = (request.args.get("q") or "").strip()[:80] or None
-        rows = store.history(con, limit=limit, saved_only=saved_only, q=q)
-        return jsonify({"items": [dict(r) for r in rows]})
+        u = current_user()
+        if u:
+            rows = store.user_history(con, u["id"], limit=limit,
+                                      saved_only=saved_only, q=q)
+        else:
+            # Signed out: the shared list, which is what a single-user install
+            # has always shown.
+            rows = store.history(con, limit=limit, saved_only=saved_only, q=q)
+        return jsonify({"items": [dict(r) for r in rows], "personal": bool(u)})
 
     @app.get("/api/history/<key>")
     def api_history_item(key):
@@ -610,13 +672,25 @@ def create_app(config=None):
     @app.post("/api/history/<key>/save")
     def api_history_save(key):
         body = request.get_json(silent=True) or {}
+        u = current_user()
+        if u:
+            ok = store.set_saved_user(get_db(), u["id"], key,
+                                      bool(body.get("saved", True)))
+            return (jsonify({"ok": True}) if ok
+                    else (jsonify({"error": "Not found"}), 404))
         ok = store.set_saved(get_db(), key, bool(body.get("saved", True)))
         return (jsonify({"ok": True, "saved": bool(body.get("saved", True))})
                 if ok else (jsonify({"error": "Not found"}), 404))
 
     @app.delete("/api/history/<key>")
     def api_history_delete(key):
-        store.delete_entry(get_db(), key)
+        u = current_user()
+        if u:
+            # Removes it from this person's list. The cached study stays, so
+            # the next reader still gets it free.
+            store.delete_user_history(get_db(), u["id"], key)
+        else:
+            store.delete_entry(get_db(), key)
         return jsonify({"ok": True})
 
     # ── progress streaming ────────────────────────────────────────────
@@ -652,17 +726,18 @@ def create_app(config=None):
             },
         )
 
-    def log_usage(con, kind, cached=False):
+    def log_usage(con, kind, cached=False, user_id=None):
         """Record one unit of work. Cached studies are logged with zero tokens."""
         u = llm.LAST_USAGE if not cached else {"input_tokens": 0, "output_tokens": 0,
                                                "model": app.config["MODEL"]}
         try:
             store.execute(con, """
-                INSERT INTO usage_log (ts, kind, cached, model, input_tokens, output_tokens)
-                VALUES (?,?,?,?,?,?)
+                INSERT INTO usage_log (ts, kind, cached, model,
+                                       input_tokens, output_tokens, user_id)
+                VALUES (?,?,?,?,?,?,?)
             """, (int(time.time()), kind, 1 if cached else 0,
                   u.get("model") or app.config["MODEL"],
-                  u.get("input_tokens", 0), u.get("output_tokens", 0)))
+                  u.get("input_tokens", 0), u.get("output_tokens", 0), user_id))
         except Exception:
             pass          # accounting must never break a study
 
@@ -691,6 +766,10 @@ def create_app(config=None):
         blocked = guard("study")
         if blocked:
             return blocked
+        # Resolved here, not inside steps(): the generator executes after the
+        # request context has been torn down, so cookies are no longer readable.
+        _u = current_user()
+        uid = _u["id"] if _u else None
 
         model = app.config["MODEL"]
         translations = _translations(lang)
@@ -723,6 +802,8 @@ def create_app(config=None):
                         pl = hit[0]["payload"]
                         out = json.loads(pl) if isinstance(pl, str) else pl
                         out["cached"] = True
+                        store.remember(con, uid, key, "study", label, question, lang)
+                        log_usage(con, "study", cached=True, user_id=uid)
                         yield sse({"stage": "done", "payload": out}); return
 
                 yield sse({"stage": "reading", "ref": label, "verses": n})
@@ -776,7 +857,7 @@ def create_app(config=None):
                 if raw is None:
                     yield sse({"stage": "error", "error": "Model returned nothing"}); return
 
-                log_usage(con, "study")
+                log_usage(con, "study", user_id=uid)
                 yield sse({"stage": "checking"})
                 study, report = validate.validate(raw, ev, lang=lang)
 
@@ -790,6 +871,7 @@ def create_app(config=None):
                     store.upsert_study(con, key, start, end, question,
                                        json.dumps(payload), model,
                                        kind="study", title=label, lang=lang)
+                store.remember(con, uid, key, "study", label, question, lang)
                 yield sse({"stage": "done", "payload": payload})
 
             finally:
@@ -808,6 +890,10 @@ def create_app(config=None):
         blocked = guard("topic")
         if blocked:
             return blocked
+        # Resolved here, not inside steps(): the generator executes after the
+        # request context has been torn down, so cookies are no longer readable.
+        _u = current_user()
+        uid = _u["id"] if _u else None
 
         model = app.config["MODEL"]
         translation = _translations(lang)[0]
@@ -824,6 +910,8 @@ def create_app(config=None):
                         pl = hit[0]["payload"]
                         out = json.loads(pl) if isinstance(pl, str) else pl
                         out["cached"] = True
+                        store.remember(con, uid, key, "topic", topic, None, lang)
+                        log_usage(con, "topic", cached=True, user_id=uid)
                         yield sse({"stage": "done", "payload": out}); return
 
                 yield sse({"stage": "locating", "topic": topics.neutralise(topic)})
@@ -849,7 +937,7 @@ def create_app(config=None):
                 except (llm.ModelError, RuntimeError) as e:
                     yield sse({"stage": "error", "error": str(e)}); return
 
-                log_usage(con, "topic")
+                log_usage(con, "topic", user_id=uid)
                 yield sse({"stage": "checking"})
                 study, report = validate.validate_topic(raw, ev, lang=lang)
                 payload = {
@@ -860,6 +948,7 @@ def create_app(config=None):
                 }
                 if app.config["CACHE_STUDIES"]:
                     store.upsert_topic(con, key, topic, lang, json.dumps(payload), model)
+                store.remember(con, uid, key, "topic", topic, None, lang)
                 yield sse({"stage": "done", "payload": payload})
 
             finally:
@@ -874,6 +963,10 @@ def create_app(config=None):
         blocked = guard("sermon")
         if blocked:
             return blocked
+        # Resolved here, not inside steps(): the generator executes after the
+        # request context has been torn down, so cookies are no longer readable.
+        _u = current_user()
+        uid = _u["id"] if _u else None
         model = app.config["MODEL"]
         translations = _translations(lang)
         opts = {
@@ -912,6 +1005,8 @@ def create_app(config=None):
                         pl = hit[0]["payload"]
                         out = json.loads(pl) if isinstance(pl, str) else pl
                         out["cached"] = True
+                        store.remember(con, uid, key, "sermon", label, opts.get("audience"), lang)
+                        log_usage(con, "sermon", cached=True, user_id=uid)
                         yield sse({"stage": "done", "payload": out}); return
 
                 yield sse({"stage": "reading", "ref": label, "verses": n})
@@ -928,7 +1023,7 @@ def create_app(config=None):
                 except (llm.ModelError, RuntimeError) as e:
                     yield sse({"stage": "error", "error": str(e)}); return
 
-                log_usage(con, "sermon")
+                log_usage(con, "sermon", user_id=uid)
                 yield sse({"stage": "checking"})
                 raw["_target_minutes"] = int(opts["minutes"] or 25)
                 study, report = validate.validate_sermon(raw, ev, lang=lang)
@@ -942,12 +1037,107 @@ def create_app(config=None):
                     store.upsert_study(con, key, start, end, opts["angle"] or opts["audience"],
                                        json.dumps(payload), model,
                                        kind="sermon", title=label, lang=lang)
+                store.remember(con, uid, key, "sermon", label, opts.get("audience"), lang)
                 yield sse({"stage": "done", "payload": payload})
 
             finally:
                 store.release(con)
 
         return stream(steps())
+
+    def _session_cookie(resp, token):
+        resp.set_cookie(auth.SESSION_COOKIE, token,
+                        max_age=auth.SESSION_DAYS * 86400, httponly=True,
+                        samesite="Lax", secure=request.is_secure, path="/")
+        return resp
+
+    @app.post("/api/auth/register")
+    def api_register():
+        b = request.get_json(silent=True) or {}
+        con = get_db()
+        try:
+            user = auth.register(con, b.get("email", ""), b.get("password", ""),
+                                 b.get("name", ""), b.get("invite", ""))
+        except auth.AuthError as e:
+            return jsonify({"error": str(e)}), 400
+        token = auth.start_session(con, user["id"], request.headers.get("User-Agent", ""))
+        return _session_cookie(jsonify({"user": auth.public(user)}), token)
+
+    @app.post("/api/auth/login")
+    def api_login():
+        b = request.get_json(silent=True) or {}
+        con = get_db()
+        try:
+            user = auth.login(con, b.get("email", ""), b.get("password", ""),
+                              limits.client_ip())
+        except auth.AuthError as e:
+            return jsonify({"error": str(e)}), 401
+        token = auth.start_session(con, user["id"], request.headers.get("User-Agent", ""))
+        return _session_cookie(jsonify({"user": auth.public(user)}), token)
+
+    @app.post("/api/auth/logout")
+    def api_logout():
+        for name in (auth.SESSION_COOKIE, auth.LEGACY_SESSION_COOKIE):
+            auth.end_session(get_db(), request.cookies.get(name, ""))
+        resp = jsonify({"ok": True})
+        for name in (auth.SESSION_COOKIE, auth.LEGACY_SESSION_COOKIE):
+            resp.delete_cookie(name, path="/")
+        return resp
+
+    @app.get("/api/auth/me")
+    def api_me():
+        u = current_user()
+        return jsonify({
+            "user": auth.public(u),
+            "accounts_required": app.config["ACCOUNTS_REQUIRED"],
+            "invite_required": bool(auth.INVITE_CODE),
+        })
+
+    @app.post("/api/auth/password")
+    def api_password():
+        u, err = require_user()
+        if err:
+            return err
+        b = request.get_json(silent=True) or {}
+        try:
+            auth.change_password(get_db(), u["id"], b.get("current", ""), b.get("new", ""))
+        except auth.AuthError as e:
+            return jsonify({"error": str(e)}), 400
+        resp = jsonify({"ok": True})
+        resp.delete_cookie(auth.SESSION_COOKIE, path="/")
+        return resp
+
+    @app.get("/api/admin/users")
+    def api_admin_users():
+        """
+        Who has signed up and how much they've used. Admin only — the first
+        account created is admin, or set ADMIN_EMAIL.
+        """
+        u = current_user()
+        if not u or not u.get("is_admin"):
+            return jsonify({"error": "Not allowed"}), 403
+        con = get_db()
+        rows = store.rows(con, """
+            SELECT u.id, u.email, u.name, u.is_admin, u.created_at, u.last_seen,
+                   (SELECT COUNT(*) FROM user_history h WHERE h.user_id = u.id) AS studies,
+                   (SELECT COUNT(*) FROM notes n WHERE n.user_id = u.id) AS notes,
+                   (SELECT COUNT(*) FROM usage_log g
+                      WHERE g.user_id = u.id AND g.cached = 0) AS billed_calls,
+                   (SELECT COALESCE(SUM(g.input_tokens),0) FROM usage_log g
+                      WHERE g.user_id = u.id) AS in_tok,
+                   (SELECT COALESCE(SUM(g.output_tokens),0) FROM usage_log g
+                      WHERE g.user_id = u.id) AS out_tok
+            FROM users u ORDER BY u.last_seen DESC
+        """)
+        in_rate = float(os.environ.get("RATE_INPUT_PER_MTOK", "3.00"))
+        out_rate = float(os.environ.get("RATE_OUTPUT_PER_MTOK", "15.00"))
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["estimated_cost"] = round(
+                (d["in_tok"] or 0) / 1e6 * in_rate + (d["out_tok"] or 0) / 1e6 * out_rate, 4)
+            out.append(d)
+        return jsonify({"users": out, "count": len(out)})
 
     @app.get("/api/costs")
     def api_costs():
@@ -1012,9 +1202,9 @@ def create_app(config=None):
         problem this file solves.
         """
         return jsonify({
-            "name": "Apparatus — Bible study",
-            "short_name": "Apparatus",
-            "description": "Study the text. Every claim shows its source.",
+            "name": "Ad Fontes — Bible study",
+            "short_name": "Ad Fontes",
+            "description": "To the sources. Every claim shows its work.",
             "start_url": "/",
             "display": "standalone",
             "background_color": "#14161C",
@@ -1032,17 +1222,39 @@ def create_app(config=None):
     @app.get("/icon.svg")
     def icon():
         """
-        A rubricated capital on ink — the initial letter of an illuminated
-        manuscript page, which is where the whole palette comes from.
-        Drawn rather than a raster so one file covers every size.
+        A rubricated manuscript capital above a wellspring.
+
+        `fontes` is Latin for springs, so "to the sources" is already a water
+        image — the arcs are the spring the letter draws from. Drawn rather
+        than rastered so one file serves every size, and the letter is set in
+        a serif with real weight so it survives being shrunk to 32px.
         """
         svg = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <rect width="512" height="512" rx="112" fill="#14161C"/>
-  <rect x="96" y="150" width="320" height="6" rx="3" fill="#D4A64A" opacity=".55"/>
-  <rect x="96" y="362" width="320" height="6" rx="3" fill="#D4A64A" opacity=".55"/>
-  <text x="256" y="322" font-family="Georgia,'Times New Roman',serif"
-        font-size="248" font-weight="600" fill="#D96A56"
-        text-anchor="middle">A</text>
+  <text x="256" y="318" font-family="Georgia,'Times New Roman',serif" font-size="300"
+        font-weight="700" fill="#D96A56" text-anchor="middle">A</text>
+  <g stroke="#D4A64A" fill="none" stroke-linecap="round">
+    <path d="M154 366 Q256 322 358 366" stroke-width="11"/>
+    <path d="M120 408 Q256 348 392 408" stroke-width="9" opacity=".62"/>
+    <path d="M90 448 Q256 374 422 448" stroke-width="7" opacity=".34"/>
+  </g>
+</svg>"""
+        return app.response_class(svg, mimetype="image/svg+xml",
+                                  headers={"Cache-Control": "public, max-age=86400"})
+
+    @app.get("/favicon.svg")
+    def favicon():
+        """
+        Simplified for browser-tab sizes. Three fading arcs turn to grey mush
+        at 16px, so this drops to one and thickens the letter — a mark that is
+        illegible small is not a smaller mark, it is a smudge.
+        """
+        svg = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#14161C"/>
+  <text x="256" y="336" font-family="Georgia,'Times New Roman',serif" font-size="360"
+        font-weight="700" fill="#D96A56" text-anchor="middle">A</text>
+  <path d="M132 400 Q256 344 380 400" stroke="#D4A64A" stroke-width="26"
+        fill="none" stroke-linecap="round"/>
 </svg>"""
         return app.response_class(svg, mimetype="image/svg+xml",
                                   headers={"Cache-Control": "public, max-age=86400"})
