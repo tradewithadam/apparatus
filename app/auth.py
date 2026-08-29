@@ -42,6 +42,12 @@ SESSION_COOKIE = "adfontes_session"
 LEGACY_SESSION_COOKIE = "apparatus_session"
 SESSION_DAYS = int(os.environ.get("SESSION_DAYS", "90"))
 INVITE_CODE = os.environ.get("INVITE_CODE", "").strip()
+# Break-glass recovery. Set it in the host's environment, use it, then unset it.
+# Only someone who can already change the server's configuration can use this,
+# which is the same person who could edit the database directly — so it grants
+# no access they did not already have, and it saves them from being locked out
+# of their own admin account with no way back in.
+RECOVERY_TOKEN = os.environ.get("RECOVERY_TOKEN", "").strip()
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "").strip().lower()
 
 # Two ceilings, deliberately far apart.
@@ -247,6 +253,59 @@ WORDS = [
     "willow", "amber", "cobalt", "crimson", "indigo", "olive", "saffron",
     "granite", "marble", "timber", "compass", "kettle", "saddle", "trellis",
 ]
+
+
+def recover(con, token: str, email: str, password: str) -> dict:
+    """
+    Reset any account's password, or create it if it is missing.
+
+    Creating when absent is deliberate: the common way to end up locked out is
+    the database being replaced by a fresh copy, which takes the accounts with
+    it. In that case there is nothing to reset, and an error saying "no such
+    account" would be accurate and useless.
+    """
+    if not RECOVERY_TOKEN:
+        raise AuthError("Recovery is not enabled.")
+    if not secrets.compare_digest(token or "", RECOVERY_TOKEN):
+        raise AuthError("Wrong recovery token.")
+
+    e = validate_email(email)
+    validate_password(password)
+    rows = store.rows(con, "SELECT id FROM users WHERE email = ?", (e,))
+    if rows:
+        uid = rows[0]["id"]
+        store.execute(con, "UPDATE users SET password_hash = ?, is_admin = 1 WHERE id = ?",
+                      (generate_password_hash(password), uid))
+        action = "reset"
+    else:
+        store.execute(con, """
+            INSERT INTO users (email, password_hash, name, is_admin, created_at, last_seen)
+            VALUES (?,?,?,1,?,?)
+        """, (e, generate_password_hash(password), "", _now(), _now()))
+        uid = store.one(con, "SELECT id FROM users WHERE email = ?", (e,))
+        action = "created"
+
+    store.execute(con, "DELETE FROM sessions WHERE user_id = ?", (uid,))
+    store.execute(con, "DELETE FROM login_attempts", ())
+    return {"action": action, "user_id": uid,
+            "total_users": store.one(con, "SELECT COUNT(*) FROM users") or 0}
+
+
+def diagnose(con, token: str) -> dict:
+    """Is the account actually there? Answers the question behind the lockout."""
+    if not RECOVERY_TOKEN or not secrets.compare_digest(token or "", RECOVERY_TOKEN):
+        raise AuthError("Wrong recovery token.")
+    users = store.rows(con, """
+        SELECT id, email, is_admin, created_at, last_seen FROM users ORDER BY id
+    """)
+    return {
+        "user_count": len(users),
+        "users": [{"id": u["id"], "email": u["email"],
+                   "is_admin": bool(u["is_admin"])} for u in users],
+        "recent_failed_logins": store.one(con, """
+            SELECT COUNT(*) FROM login_attempts WHERE ts > ?
+        """, (_now() - LOGIN_WINDOW,)) or 0,
+    }
 
 
 def prune(con):

@@ -1090,6 +1090,29 @@ def create_app(config=None):
         token = auth.start_session(con, user["id"], request.headers.get("User-Agent", ""))
         return _session_cookie(jsonify({"user": auth.public(user)}), token)
 
+    @app.post("/api/auth/recover")
+    def api_recover():
+        """
+        Locked out with no admin to help? Set RECOVERY_TOKEN in the host
+        environment and post it here with the email and a new password.
+        Unset it again afterwards.
+        """
+        b = request.get_json(silent=True) or {}
+        try:
+            out = auth.recover(get_db(), b.get("token", ""),
+                               b.get("email", ""), b.get("password", ""))
+        except auth.AuthError as e:
+            return jsonify({"error": str(e)}), 403
+        app.logger.warning("Recovery used for %s (%s)", b.get("email"), out["action"])
+        return jsonify({"ok": True, **out})
+
+    @app.get("/api/auth/diagnose")
+    def api_diagnose():
+        try:
+            return jsonify(auth.diagnose(get_db(), request.args.get("token", "")))
+        except auth.AuthError as e:
+            return jsonify({"error": str(e)}), 403
+
     @app.post("/api/auth/login")
     def api_login():
         b = request.get_json(silent=True) or {}
